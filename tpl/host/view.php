@@ -29,7 +29,15 @@ table.host-vars {
     <?= escape($host->describe()) ?> : replication family
 </h3>
 
-<?php include 'table.php'; ?>
+<?php
+
+include 'table.php';
+
+?>
+
+<nav>
+    <a href="/chart?hosts=<?= urlencode(sprintf('family:%s', $host->name_short())) ?>&vars=questions&mode=delta">family chart</a>
+</nav>
 
 <h3>
     <?= escape($host->describe()) ?> : graphs

@@ -2,6 +2,7 @@
 
 use strict;
 use DBI;
+use Socket;
 use Digest::MD5 qw(md5 md5_hex md5_base64);
 
 my $dbi = "DBI:mysql:;mysql_read_default_file=./tendril.cnf;mysql_read_default_group=tendril";
@@ -29,6 +30,18 @@ while (my $row = $servers->fetchrow_hashref())
 		{
 			while (my $row = $select->fetchrow_hashref())
 			{
+				if ($row->{host} =~ /^(\d+\.\d+\.\d+\.\d+):\d+$/)
+				{
+					my $ipv4 = $1;
+					my $iaddr = inet_aton($ipv4);
+					if (my $host = gethostbyaddr($iaddr, AF_INET))
+					{
+						my $replace = $db->prepare("replace into dns (host, ipv4) values (?, ?)");
+						$replace->execute($host, $ipv4);
+						$replace->finish();
+					}
+				}
+
 				my $query = $row->{info};
 				$query =~ s/"(?:[^"\\]|\\.)*"/?/ig;
 				$query =~ s/'(?:[^'\\]|\\.)*'/?/ig;
@@ -39,6 +52,7 @@ while (my $row = $servers->fetchrow_hashref())
 				$query =~ s/\s+$//ig;
 				$query =~ s/[(][?,'" ]+?[)]/?LIST?/g;
 
+
 				my $update = $db->prepare("update processlist_query_log set checksum = md5(?) where server_id = ? and id = ? and md5(info) = ?");
 				my $rs = $update->execute($query, $server_id, $row->{id}, $row->{info_md5});
 				$update->finish();
@@ -48,6 +62,19 @@ while (my $row = $servers->fetchrow_hashref())
 		}
 		print "\n";
 		$select->finish();
+
+		if (my $ipv4packed = gethostbyname($host))
+		{
+			my $ipv4 = inet_ntoa($ipv4packed);
+			
+			my $update = $db->prepare("update servers set ipv4 = ? where id = ?");
+			$update->execute($ipv4, $server_id);
+			$update->finish();
+
+			my $replace = $db->prepare("replace into dns (host, ipv4) values (?, ?)");
+			$replace->execute($host, $ipv4);
+			$replace->finish();
+		}
 	}
 }
 $servers->finish();

@@ -51,12 +51,12 @@
 
 foreach ($processlist as $row)
 {
-    $host = new Host($row['server']);
+    $host = new Host($row['server_id']);
 
     list ($ip, $port) = explode(':', $row['host']);
 
-    $client = gethostbyaddr($ip);
-    list($client_short) = explode('.', $client);
+    $client = expect($dns, $ip, 'string', $ip);
+    list($client_short) = preg_match('/^[a-z]/', $client) ? explode('.', $client): $client;
 
     $cells = array(
         tag('td', array(

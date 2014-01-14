@@ -62,7 +62,6 @@
     <th class="contact" title="last contact">Act.</th>
     <th class="qps">QPS</th>
     <th class="master">Master</th>
-    <th class="cluster">&nbsp;</th>
     <th class="replag">Lag</th>
     <th class="slaves">Slaves</th>
 </tr>
@@ -81,10 +80,9 @@ function contact($secs)
 
 foreach ($hosts as $row)
 {
-    $h = new Host($row);
+    $h = new Host($row['id']);
 
     $master = '-';
-    $cluster = '-';
 
     if ($h->m_master_id)
     {
@@ -93,12 +91,6 @@ foreach ($hosts as $row)
             'href' => sprintf('/host/view/%s/%d', $m->name(), $m->port),
             'html' => escape($m->name_short()),
         ));
-        $cluster = $m->cluster();
-    }
-
-    if ($cluster == '-')
-    {
-        $cluster = $h->cluster();
     }
 
     $slaves = '-';
@@ -179,10 +171,6 @@ foreach ($hosts as $row)
         tag('td', array(
             'class' => 'master',
             'html' => $master,
-        )),
-        tag('td', array(
-            'class' => 'cluster',
-            'html' => escape($cluster),
         )),
         tag('td', array(
             'class' => sprintf('replag %s', $lag > 30 ? 'bad': ''),

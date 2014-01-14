@@ -69,7 +69,7 @@ foreach ($rows as $row)
 	{
 		$host = new Host(expect($servers, $server_id, 'array', $server_id));
 		$hosts[] = tag('a', array(
-			'href' => sprintf('/host/%s/%d', $host->name(), $host->port()),
+			'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
 			'html' => escape($host->describe()),
 		));
 	}
@@ -80,7 +80,7 @@ foreach ($rows as $row)
 	$sample = str_replace(',', ', ', $row['sample']);
 
 	$shost = new Host(expect($servers, $row['sample_server_id'], 'array', $row['sample_server_id']));
-	$sample = sprintf('%s /* %s %s %s */', $sample, $row['checksum'], $shost->describe(), $row['sample_db']);
+	$sample = sprintf('%s /* %s %s %s %ds */', $sample, $row['checksum'], $shost->describe(), $row['sample_db'], $row['sample_time']);
 
 	if (($ips = find_ipv4($sample)) && ($name = gethostbyaddr($ips[0])) && $name != $ips[0])
 	{

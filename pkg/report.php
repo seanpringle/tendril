@@ -682,7 +682,11 @@ class Package_Report extends Package
 				'sum(pql.time) as sum_time',
 				'group_concat(distinct pql.user) as users',
 				'group_concat(distinct pql.db order by pql.db) as dbs',
-				'group_concat(distinct pql.server_id order by srv.host) as servers'
+				'group_concat(distinct pql.server_id order by srv.host) as servers',
+				'pql.info as sample',
+				'pql.db as sample_db',
+				'pql.time as sample_time',
+				'pql.server_id as sample_server_id',
 			))
 			->where_not_null('pql.checksum')
 			->where('pql.stamp > now() - interval '.$hours.' hour')
@@ -692,6 +696,7 @@ class Package_Report extends Package
 			->having('max_time > 10')
 			->group('pql.checksum')
 			->order('sum_time', 'desc')
+			->order('max_time', 'desc')
 			->limit(25);
 
 		if ($host)
@@ -715,37 +720,6 @@ class Package_Report extends Package
 		}
 
 		$rows = $search->fetch_all('checksum');
-
-		foreach ($rows as $checksum => $row)
-		{
-			$search = sql::query('tendril.processlist_query_log pql')
-				->left_join('tendril.servers srv', 'pql.server_id = srv.id')
-				->fields('info, db, server_id')
-				->where_eq('pql.checksum', $checksum)
-				->where('pql.stamp > now() - interval '.$hours.' hour')
-				->order('pql.time', 'desc')
-				->limit(1);
-
-			if ($host)
-			{
-				$search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
-			}
-
-			if ($schema)
-			{
-				$search->where_regexp('pql.db', $schema);
-			}
-
-			if ($user)
-			{
-				$search->where_regexp('pql.user', $user);
-			}
-
-			$sample = $search->fetch_one();
-			$rows[$checksum]['sample'] = $sample['info'];
-			$rows[$checksum]['sample_db'] = $sample['db'];
-			$rows[$checksum]['sample_server_id'] = $sample['server_id'];
-		}
 
 		return array( $rows );
 	}

@@ -12,7 +12,7 @@ class Package_Activity extends Package
         switch ($this->action())
         {
             default:
-                list ($processlist) = $this->data_list();
+                list ($processlist, $dns) = $this->data_list();
                 include ROOT .'tpl/activity/list.php';
         }
     }
@@ -48,6 +48,11 @@ class Package_Activity extends Package
 
         $processlist = $search->fetch_all();
 
-        return array( $processlist );
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+        return array( $processlist, $dns );
     }
 }

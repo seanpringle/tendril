@@ -14,6 +14,13 @@ class Record
 	protected $_dberror  = null;
 	protected $_pk       = 'id';
 
+    const NOCACHE = 0;
+    const CACHE = 1;
+    const MEMCACHE = 2;
+
+	protected $_cache = 0;
+	protected $_expire = 0;
+
 	/**
 	 * @param string table name
 	 * @param string|uint|array primary key value or entire record
@@ -90,16 +97,37 @@ class Record
 		return $this->ok;
 	}
 	/**
+	 * Memcache key
+	 */
+	protected function mc_key()
+	{
+		$pk = $this->_pk;
+		return sprintf('%s.%s.%s', $this->_table, $pk, $this->$pk);
+	}
+	/**
 	 * Load record from database, or external cache.
 	 * @return success
 	 */
 	protected function load()
 	{
 		$pk = $this->_pk;
+		
+		$row = null;
 		$sql = sql::query($this->_table)->where($pk, $this->$pk);
-		$row = $sql->fetch_one();
+		$cache = true;
 
-		$this->check($sql);
+		if ($this->_cache == self::MEMCACHE && mc())
+		{
+			error_log(sprintf('(memcached) read %s', $this->mc_key()));
+			$row = @mc()->get($this->mc_key());
+			$cache = false;
+		}
+
+		if (!$row)
+		{
+			$row = $sql->fetch_one();
+			$this->check($sql);
+		}
 
 		if (!$row || !$this->ok)
 		{
@@ -107,7 +135,15 @@ class Record
 			$this->ok = false;
 			return false;
 		}
+
 		$this->inject($row);
+
+		if ($this->ok && $cache && $this->_cache == self::MEMCACHE && mc())
+		{
+			error_log(sprintf('(memcached) save %s', $this->mc_key()));
+			mc()->set($this->mc_key(), $this->export(), $this->_expire);
+		}
+
 		return true;
 	}
 	/**
@@ -251,9 +287,16 @@ class Record
 		if (count($data))
 		{
 			$pk = $this->_pk;
+
 			$this->check(
 				sql::query($this->_table)->set($data)->where($pk, $this->$pk)->update()
 			);
+
+			if ($this->ok && $this->_cache == self::MEMCACHE && mc())
+			{
+				error_log(sprintf('(memcached) save %s', $this->mc_key()));
+				mc()->set($this->mc_key(), $this->export(), $this->_expire);
+			}
 		}
 		return $this->ok;
 	}
@@ -291,6 +334,12 @@ class Record
 				$this->load();
 				break;
 			}
+		}
+
+		if ($this->ok && $this->_cache == self::MEMCACHE && mc())
+		{
+			error_log(sprintf('(memcached) save %s', $this->mc_key()));
+			mc()->set($this->mc_key(), $this->export(), $this->_expire);
 		}
 		return true;
 	}

@@ -15,10 +15,11 @@ $clusters = array(
 
 class Host extends Record
 {
-
-
     public function __construct($id=0)
     {
+        $this->_cache = Record::MEMCACHE;
+        $this->_expiry = 300;
+
         if (is_string($id))
         {
             $name = $id;
@@ -54,7 +55,7 @@ class Host extends Record
 
     public function ipv4()
     {
-        return gethostbyname($this->host);
+        return $this->ipv4 ?: gethostbyname($this->host);
     }
 
     public function name()
@@ -69,7 +70,8 @@ class Host extends Record
 
     public function name_short()
     {
-        return array_shift(explode('.', $this->host));
+        $parts = explode('.', $this->host);
+        return $parts ? $parts[0]: '-';
     }
 
     public function describe()
