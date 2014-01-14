@@ -1,0 +1,104 @@
+<?php
+
+error_reporting(E_ALL);
+
+error_log('************************************');
+error_log($_SERVER['REQUEST_URI']);
+
+define('DEBUG', true);
+define('ROOT', '/srv/tendril/');
+
+require_once ROOT . 'lib/sql.php';
+require_once ROOT . 'lib/search.php';
+require_once ROOT . 'lib/record.php';
+require_once ROOT . 'lib/user.php';
+require_once ROOT . 'lib/utility.php';
+
+set_error_handler(
+
+    function($errno, $message, $file, $line, $context)
+    {
+        if ($errno === E_WARNING) {
+            backtrace();
+        }
+        return false;
+    }
+);
+
+function db()
+{
+    static $db = null;
+    if (is_null($db) || !is_resource($db))
+    {
+        $db = mysql_connect('127.0.0.1:3306', 'user', 'pass')
+            or die('database'); mysql_select_db('tendril_web');
+    }
+    return $db;
+}
+
+db();
+
+session_set_save_handler(
+
+/*
+CREATE TABLE `sessions` (
+  `id` varchar(32) NOT NULL,
+  `data` longtext NOT NULL,
+  `stamp` int(10) unsigned NOT NULL,
+  PRIMARY KEY (`id`),
+  KEY `stamp` (`stamp`)
+) ENGINE=InnoDB;
+*/
+    // open
+    function ($path, $name) {
+        return mysql_ping();
+    },
+    // close
+    function () {
+        $maxlife = 86400;
+        // debian and ubuntu handle session cleanup via external cron, so our custom gc() below would never be called. genius!
+        // do gc manually here. the query is indexed and the client already has page content, so this should be cheap
+        sql::query('sessions')->where('stamp < ?', time() - $maxlife)->delete();
+        return true;
+    },
+    // read
+    function ($id) {
+        $data = sql::query('sessions')->where('id', $id)->fetch_value('data');
+        // session data can include binary
+        // MUST return empty string for missing session or wierd things happen. not false. not null. empty string.
+        return $data ? base64_decode($data): '';
+    },
+    // write
+    function ($id, $data) {
+        // session data can include binary
+        $data = base64_encode($data);
+        sql::query('sessions')->set(array('id' => $id, 'data' => $data, 'stamp' => time()))->replace();
+    },
+    // destroy
+    function ($id) {
+        sql::query('sessions')->where('id', $id)->delete();
+    },
+    // gc
+    function ($maxlife) {
+        // see close
+    }
+);
+
+// php destroys objects and classes before writing the session
+// trigger the write before said cleanup
+register_shutdown_function('session_write_close');
+
+ob_start('ob_gzhandler');
+session_start();
+
+$user = new User(expect($_SESSION, 'user_id', 'pint', 0));
+
+if (!($user->ok && $user->id > User::GUEST))
+{
+    $user = new User(User::GUEST);
+    unset($_SESSION['user_id']);
+}
+
+function usr() { global $user; return $user; }
+
+require_once ROOT .'lib/host.php';
