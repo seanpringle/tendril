@@ -22,6 +22,11 @@
 
 </style>
 
+<p class="note" style="text-align: center;">
+    Generated <em>only</em> from the replication state reported by each server.<br>
+    If this doesn't match up with puppet and <a href="http://noc.wikimedia.org/dbtree/">dbtree</a>, 
+    immediately do a sanity check!
+</p>
 
 <script type="text/javascript">
 

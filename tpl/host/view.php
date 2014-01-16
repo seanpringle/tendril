@@ -36,7 +36,7 @@ include 'table.php';
 ?>
 
 <nav>
-    <a href="/chart?hosts=<?= urlencode(sprintf('family:%s', $host->name_short())) ?>&vars=questions&mode=delta">family chart</a>
+    <a href="/chart?hosts=<?= urlencode($host->m_server_id ? $host->name_short(): sprintf('family:%s', $host->name_short())) ?>&vars=questions&mode=delta">family chart</a>
 </nav>
 
 <h3>

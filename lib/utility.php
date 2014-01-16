@@ -289,8 +289,34 @@ function decrypt($text, $salt)
 
 function escape($str)
 {
-    return htmlentities(iconv('UTF-8', 'UTF-8//IGNORE', $str), ENT_QUOTES, 'UTF-8');
-// php 5.4   return htmlspecialchars($str, ENT_QUOTES | ENT_SUBSTITUTE | ENT_DISALLOWED | ENT_HTML5, defined('CHARSET') ? CHARSET: 'UTF-8');
+    $charsets = array(
+        'UTF-8',
+        'ISO-8859-1',
+        'ISO-8859-15',
+        'GB2312',
+        'BIG5',
+        'BIG5-HKSCS',
+        'Shift_JIS',
+        'EUC-JP',
+        'KOI8-R',
+        'ISO-8859-5',
+        'cp1251',
+        'cp1252',
+        'MacRoman',
+    );
+
+    $test = false;
+    foreach ($charsets as $charset)
+    {
+        if ($test === false) $test = @iconv($charset, 'UTF-8//TRANSLIT', $str);
+        if ($test !== false) { $str = $test; break; }
+    }
+
+    $flags = ENT_QUOTES;
+    if (defined('ENT_SUBSTITUTE')) $flags |= ENT_SUBSTITUTE; // php 5.4
+    if (defined('ENT_HTML5'))      $flags |= ENT_HTML5;      // php 5.4
+
+    return htmlentities($str, $flags, 'UTF-8');
 }
 
 function find_ipv4($str)

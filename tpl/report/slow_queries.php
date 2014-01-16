@@ -82,7 +82,7 @@ foreach ($rows as $row)
 	$shost = new Host(expect($servers, $row['sample_server_id'], 'array', $row['sample_server_id']));
 	$sample = sprintf('%s /* %s %s %s %ds */', $sample, $row['checksum'], $shost->describe(), $row['sample_db'], $row['sample_time']);
 
-	if (($ips = find_ipv4($sample)) && ($name = gethostbyaddr($ips[0])) && $name != $ips[0])
+	if (($ips = find_ipv4($sample)) && ($name = dns_reverse($ips[0])) && $name != $ips[0])
 	{
 		$sample = sprintf('%s /* %s */', $sample, $name);
 	}
@@ -91,7 +91,16 @@ foreach ($rows as $row)
 		tag('td', array(
 			'title' => 'Hits',
 			'class' => 'right',
-			'html' => $row['hits'],
+			'html' => tag('a', array(
+				'href' => sprintf('/report/slow_queries_checksum?checksum=%s&host=%s&user=%s&schema=%s&hours=%s',
+					$row['checksum'], 
+					urlencode(pkg()->request('host')), 
+					urlencode(pkg()->request('user')), 
+					urlencode(pkg()->request('schema')), 
+					urlencode(pkg()->request('hours'))
+				),
+				'html' => $row['hits'],
+			)),
 		)),
 		tag('td', array(
 			'title' => 'Tmax',

@@ -18,11 +18,12 @@ class Package_Chart extends Package_Report
 
 	private function data()
 	{
-		$vars  = $this->request('vars', 'string');
-		$host  = $this->request('hosts', 'string');
-		$hours = 24;
-		$mins  = 5;
-		$mode  = $this->request('mode', 'string', 'delta');
+		$vars   = $this->request('vars', 'string');
+		$host   = $this->request('hosts', 'string');
+		$hours  = 24;
+		$mins   = 5;
+		$mode   = $this->request('mode', 'string', 'delta');
+		$vgroup = $this->request('vg', 'bool', false);
 
 		$cols = $rows = array();
 
@@ -51,35 +52,67 @@ class Package_Chart extends Package_Report
 	            ->limit(10)
 	            ->fetch_pair('string', 'id');
 
-	        $i = 0;
+	        $i = 1;
 	        foreach ($servers as $server_id)
 	        {
 	        	$host = new Host($server_id);
 
-		        foreach ($names as $name => $name_id)
-		        {
-		            $cols['y'.($i+1)] = array(
-		            	count($servers) > 1 ? $host->describe().' '.$name: $name,
+	        	if ($vgroup)
+	        	{
+		            $cols['y'.$i] = array(
+		            	$host->describe(),
 		            	'number'
 		            );
 
-		            $table = preg_match('/Seconds_Behind_Master/', $name)
-		                //? 'tendril.slave_status_log': 'dbmon.global_status_log_5m';
-		                ? 'tendril.slave_status_log': 'tendril.global_status_log';
+		        	$subqueries = array();
 
-		            $fields[] = sprintf('(%s) as y%d',
-		                sql::query($table.' gsl')
-		                    ->fields($mode)
-		                    ->where('gsl.stamp between x - interval '.$mins.' minute and x')
-		                    ->where_eq('gsl.server_id', $server_id)
-		                    ->where_eq('gsl.name_id', $name_id)
-		                    ->where('gsl.stamp > now() - interval 24 hour')
-		                    ->get_select(),
-		                $i+1
-		            );
+			        foreach ($names as $name => $name_id)
+			        {
+			            $table = preg_match('/Seconds_Behind_Master/', $name)
+			                //? 'tendril.slave_status_log': 'dbmon.global_status_log_5m';
+			                ? 'tendril.slave_status_log': 'tendril.global_status_log';
 
-		            $i++;
-		        }
+			            $subqueries[] = sprintf('(%s)',
+			                sql::query($table.' gsl')
+			                    ->fields($mode)
+			                    ->where('gsl.stamp between x - interval '.$mins.' minute and x')
+			                    ->where_eq('gsl.server_id', $server_id)
+			                    ->where_eq('gsl.name_id', $name_id)
+			                    ->where('gsl.stamp > now() - interval 24 hour')
+			                    ->get_select()
+			            );
+
+			        }
+			        $fields[] = sprintf('(%s) as y%d', $subqueries ? join(' + ', $subqueries): '0', $i);
+		        	$i++;
+	        	}
+	        	else
+	        	{
+			        foreach ($names as $name => $name_id)
+			        {
+			            $cols['y'.$i] = array(
+			            	$host->describe() . (count($names) > 1 ? ' '.$name: ''),
+			            	'number'
+			            );
+
+			            $table = preg_match('/Seconds_Behind_Master/', $name)
+			                //? 'tendril.slave_status_log': 'dbmon.global_status_log_5m';
+			                ? 'tendril.slave_status_log': 'tendril.global_status_log';
+
+			            $fields[] = sprintf('(%s) as y%d',
+			                sql::query($table.' gsl')
+			                    ->fields($mode)
+			                    ->where('gsl.stamp between x - interval '.$mins.' minute and x')
+			                    ->where_eq('gsl.server_id', $server_id)
+			                    ->where_eq('gsl.name_id', $name_id)
+			                    ->where('gsl.stamp > now() - interval 24 hour')
+			                    ->get_select(),
+			        		$i	        		
+			            );
+
+			            $i++;
+			        }
+	        	}
 		    }
 
 	        $rows = sql::query('sequence s')

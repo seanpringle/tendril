@@ -41,8 +41,6 @@ class sql
     protected $db_vers = null;
     protected $db_user = null;
 
-    protected $mc_host = '127.0.0.1';
-
     public function __construct($table=null, $db=null)
     {
         if (!is_null($table)) $this->from($table);
@@ -147,7 +145,7 @@ class sql
     }
 
     // allow client side caching of result
-    public function cache($f=sql::CACHE, $expire=30)
+    public function cache($f=sql::CACHE, $expire=0)
     {
         $this->cache = $f;
         $this->expire = $expire;
@@ -552,17 +550,6 @@ class sql
         $sql = $this->rs_sql ? $this->rs_sql: $this->get_select();
         $md5 = md5($sql);
 
-        $mc = null;
-        if ($this->cache === sql::MEMCACHE)
-        {
-            if (class_exists('Memcache'))
-            {
-                $mc = new Memcache();
-                if (!$mc->addServer($this->mc_host))
-                    $mc = null;
-            }
-        }
-
         if (!$this->rs)
         {
             if ($this->cache && isset(self::$_result_cache[$md5]))
@@ -571,7 +558,7 @@ class sql
                 return unserialize(gzuncompress(self::$_result_cache[$md5]));
             }
 
-            if ($mc && ($data_obj = @$mc->get($md5)) && is_array($data_obj))
+            if (($data_obj = cache::get($md5, 'array')) && is_array($data_obj))
             {
                 error_log("sql $host (memcached): ".rtrim($sql)."\n");
                 return $data_obj;
@@ -601,8 +588,8 @@ class sql
             $rows[$index ? $res[$index]: $j] = $res;
         }
 
-        if ($mc && $this->cache === sql::MEMCACHE)
-            @$mc->set($md5, $rows, 0, $this->expire);
+        if ($this->cache === sql::MEMCACHE)
+            cache::set($md5, $rows, $this->expire);
 
         if ($this->cache)
             self::$_result_cache[$md5] = gzcompress(serialize($rows));

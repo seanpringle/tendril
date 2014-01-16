@@ -18,7 +18,7 @@ class cache
 	{
 		if (function_exists('mc') && mc())
 		{
-			@mc()->set($key, $value, $expire);
+			@mc()->set($key, $value, 0, $expire);
 			return;
 		}
 		self::$cache[$key] = $value;

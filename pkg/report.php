@@ -2,6 +2,8 @@
 
 class Package_Report extends Package
 {
+	const EXPIRE = 3600;
+
 	public function page()
 	{
 		switch ($this->action())
@@ -47,8 +49,13 @@ class Package_Report extends Package
 				break;
 
 			case 'slow_queries':
-				list ($rows) = $this->data_slow_queries();
+				list ($rows, $dns) = $this->data_slow_queries();
 				include ROOT .'tpl/report/slow_queries.php';
+				break;
+
+			case 'slow_queries_checksum':
+				list ($rows, $dns) = $this->data_slow_queries_checksum();
+				include ROOT .'tpl/report/slow_queries_checksum.php';
 				break;
 
 			case 'schemas':
@@ -64,6 +71,11 @@ class Package_Report extends Package
 			case 'row_distribution':
 				list ($query) = $this->data_row_distribution();
 				include ROOT .'tpl/report/row_distribution.php';
+				break;
+
+			case 'processlist':
+				list ($rows, $dns) = $this->processlist();
+				include ROOT .'tpl/report/processlist.php';
 				break;
 
 			default:
@@ -544,8 +556,10 @@ class Package_Report extends Package
 			->fields('variable_value')->where('server_id = srv.id')
 			->where_eq('variable_name', 'innodb_flush_log_at_trx_commit');
 
-		$reqs_id  = sql::query('tendril.strings')->where_eq('string', 'innodb_buffer_pool_read_requests')->fetch_value('id');
-		$reads_id = sql::query('tendril.strings')->where_eq('string', 'innodb_buffer_pool_reads')->fetch_value('id');
+		$reqs_id  = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_buffer_pool_read_requests')->fetch_value('id');
+		$reads_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_buffer_pool_reads')->fetch_value('id');
 
 		$bphr = sql::query('dbmon.global_status_log_5m gs1')
 			->join('dbmon.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
@@ -561,8 +575,10 @@ class Package_Report extends Package
 			->fields('variable_value')->where('server_id = srv.id')
 			->where_eq('variable_name', 'innodb_buffer_pool_wait_free');
 
-		$r_id = sql::query('tendril.strings')->where_eq('string', 'innodb_data_read')->fetch_value('id');
-		$w_id = sql::query('tendril.strings')->where_eq('string', 'innodb_data_written')->fetch_value('id');
+		$r_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_data_read')->fetch_value('id');
+		$w_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_data_written')->fetch_value('id');
 
 		$io = sql::query('dbmon.global_status_log_5m gs1')
 			->join('dbmon.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
@@ -574,7 +590,8 @@ class Package_Report extends Package
 			->where('gs2.stamp > now() - interval 1 hour')
 			->fields('(max(gs1.value)-min(gs1.value)) / (max(gs2.value)-min(gs2.value))');
 
-		$dl_id = sql::query('tendril.strings')->where_eq('string', 'innodb_deadlocks')->fetch_value('id');
+		$dl_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_deadlocks')->fetch_value('id');
 
 		$deadlocks = sql::query('dbmon.global_status_log_5m')
 			->where('server_id = srv.id')
@@ -582,8 +599,10 @@ class Package_Report extends Package
 			->where('stamp > now() - interval 1 hour')
 			->fields('max(value)-min(value)');
 
-		$s_id = sql::query('tendril.strings')->where_eq('string', 'innodb_s_lock_os_waits')->fetch_value('id');
-		$x_id = sql::query('tendril.strings')->where_eq('string', 'innodb_x_lock_os_waits')->fetch_value('id');
+		$s_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_s_lock_os_waits')->fetch_value('id');
+		$x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_x_lock_os_waits')->fetch_value('id');
 
 		$os_s_waits = sql::query('dbmon.global_status_log_5m')
 			->where('server_id = srv.id')
@@ -597,8 +616,10 @@ class Package_Report extends Package
 			->where('stamp > now() - interval 1 hour')
 			->fields('(max(value)-min(value)) / 3600');
 
-		$s_id = sql::query('tendril.strings')->where_eq('string', 'innodb_s_lock_spin_waits')->fetch_value('id');
-		$x_id = sql::query('tendril.strings')->where_eq('string', 'innodb_x_lock_spin_waits')->fetch_value('id');
+		$s_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_s_lock_spin_waits')->fetch_value('id');
+		$x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_x_lock_spin_waits')->fetch_value('id');
 
 		$spin_s_waits = sql::query('dbmon.global_status_log_5m')
 			->where('server_id = srv.id')
@@ -612,8 +633,10 @@ class Package_Report extends Package
 			->where('stamp > now() - interval 1 hour')
 			->fields('(max(value)-min(value)) / 3600');
 
-		$s_id = sql::query('tendril.strings')->where_eq('string', 'innodb_s_lock_spin_rounds')->fetch_value('id');
-		$x_id = sql::query('tendril.strings')->where_eq('string', 'innodb_x_lock_spin_rounds')->fetch_value('id');
+		$s_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_s_lock_spin_rounds')->fetch_value('id');
+		$x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
+			->where_eq('string', 'innodb_x_lock_spin_rounds')->fetch_value('id');
 
 		$spin_s_rounds = sql::query('dbmon.global_status_log_5m')
 			->where('server_id = srv.id')
@@ -628,7 +651,7 @@ class Package_Report extends Package
 			->fields('(max(value)-min(value)) / 3600');
 
 		$search = sql::query('tendril.servers srv')
-            ->cache(sql::MEMCACHE, 300)
+            ->cache(sql::MEMCACHE, self::EXPIRE)
 
 			->order('srv.host')
 			->order('srv.port')
@@ -721,7 +744,61 @@ class Package_Report extends Package
 
 		$rows = $search->fetch_all('checksum');
 
-		return array( $rows );
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+		return array( $rows, $dns );
+	}
+
+	private function data_slow_queries_checksum()
+	{
+		$checksum = $this->request('checksum');
+		$host     = $this->request('host');
+		$schema   = $this->request('schema');
+		$user     = $this->request('user');
+		$hours    = $this->request('hours', 'float', 1);
+
+		$qmode = $this->request('qmode', 'string', 'eq');
+
+		$rows = array();
+
+		if ($checksum)
+		{
+			$search = sql::query('tendril.processlist_query_log pql')
+				->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+				->fields(array('pql.*'))
+				->where_eq('pql.checksum', $checksum)
+				->where('pql.stamp > now() - interval '.$hours.' hour')
+				->where_gt('pql.time', 1)
+				->order('time', 'desc')
+				->limit(25);
+
+			if ($host)
+			{
+				$search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+			}
+
+			if ($schema)
+			{
+				$search->where_regexp('pql.db', $schema);
+			}
+
+			if ($user)
+			{
+				$search->where_regexp('pql.user', $user);
+			}
+
+			$rows = $search->fetch_all();
+		}
+
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+		return array( $rows, $dns );
 	}
 
 	private function data_schemas()
@@ -812,6 +889,67 @@ class Package_Report extends Package
 		}
 
 		return array( 'explain ' .join(" union\n", $unions ));
+	}
+
+	private function processlist()
+	{
+		$host    = $this->request('host');
+		$schema  = $this->request('schema');
+		$user    = $this->request('user');
+		$time    = $this->request('time');
+		$command = $this->request('command');
+		$query   = $this->request('query');
+
+		$qmode = $this->request('qmode', 'string', 'eq');
+
+		$rows = array();
+
+		if ($host || $schema || $user || $time || $command)
+		{
+			$search = sql::query('tendril.processlist p')->fields('p.*')
+				->join('tendril.servers srv', 'p.server_id = srv.id')
+				->order('p.time', 'desc')
+				->limit(100);
+
+			if ($host)
+			{
+				$search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+			}
+
+			if ($schema)
+			{
+				$search->where_regexp('p.db', $schema);
+			}
+
+			if ($user)
+			{
+				$search->where_regexp('p.user', $user);
+			}
+
+			if ($time)
+			{
+				$search->where_gt('p.time', $time);
+			}
+
+			if ($command)
+			{
+				$search->where_regexp('p.command', $command);
+			}
+
+			if ($query)
+			{
+				$search->where_regexp('p.info', $query, $qmode != 'ne');
+			}
+
+			$rows = $search->fetch_all();
+		}
+
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+		return array( $rows, $dns );
 	}
 
 }

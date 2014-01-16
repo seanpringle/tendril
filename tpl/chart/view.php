@@ -1,10 +1,18 @@
 
 <form method="GET" class="search">
 
+<div style="display: inline-block; margin-right: 1em;">
 	hosts
-	<input type="text" name="hosts" value="<?= escape(pkg()->request('hosts')) ?>" placeholder="regex" />
+	<input type="text" style="width: 20em;" name="hosts" value="<?= escape(pkg()->request('hosts')) ?>" placeholder="regex" />
+</div>
+
+<div style="display: inline-block; margin-right: 1em;">
 	vars
 	<input list="vars" style="width: 20em;" type="text" name="vars" value="<?= escape(pkg()->request('vars')) ?>" placeholder="regex" />
+    <input type="checkbox" name="vg" value="1" title="group vars" <?= pkg()->request('vg', 'bool', 0) ? 'checked': '' ?> />
+</div>
+
+<div style="display: inline-block; margin-right: 1em;">
 	mode
 	<select name="mode">
 		<option value="delta"<?= pkg()->request('mode') == 'delta' ? ' selected':'' ?>>delta</option>
@@ -12,6 +20,8 @@
 	</select>
 
 	<input type="submit" value="Search" />
+</div>
+
 </form>
 
 <?php if ($cols && $rows) { ?>
@@ -65,6 +75,7 @@ function drawChart()
 
 <ul>
 	<li><a href="?hosts=masters&vars=questions&mode=delta">Masters, Questions</a></li>
+    <li><a href="?hosts=db10%2852|60|19|20|45|06|28%29&vars=questions&mode=delta">LB 400 slave per shard, Questions</a></li>
 </ul>
 
 <datalist id="vars">
