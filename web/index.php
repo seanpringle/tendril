@@ -1,7 +1,13 @@
 <?php
 
-require_once '../lib/config.php';
-require_once ROOT . 'lib/package.php';
+ob_start();
+
+define('ROOT', dirname(dirname(__FILE__)).'/');
+
+require_once ROOT .'lib/utility.php';
+require_once ROOT .'lib/cache.php';
+require_once ROOT .'lib/sql.php';
+require_once ROOT .'lib/config.php';
 
 // find out where we are
 $path    = @trim(array_shift(explode('?', $_SERVER['REQUEST_URI'])), '/');
@@ -16,12 +22,19 @@ $package = count($request)
 if (!file_exists(ROOT ."pkg/$package.php"))
     $package = '404';
 
+require_once ROOT .'lib/package.php';
 require_once ROOT ."pkg/$package.php";
 
-$pkg_class = 'Package_' . $package;
-$pkg = new $pkg_class();
+if (!class_exists('Package_'.$package))
+	$package = '404';
 
-function pkg() { global $pkg; return $pkg; }
+$class = 'Package_' . $package;
+$_pkg = new $class();
 
-$pkg->process();
-$pkg->display();
+function pkg() { global $_pkg; return $_pkg; }
+
+$_pkg->process();
+
+ob_get_clean();
+
+$_pkg->display();

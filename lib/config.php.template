@@ -1,21 +1,10 @@
 <?php
 
 error_reporting(E_ALL);
+date_default_timezone_set('UTC');
 
 error_log('************************************');
 error_log($_SERVER['REQUEST_URI']);
-
-define('DEBUG', true);
-define('ROOT', '/srv/tendril/');
-
-require_once ROOT . 'lib/cache.php';
-require_once ROOT . 'lib/sql.php';
-require_once ROOT . 'lib/search.php';
-require_once ROOT . 'lib/record.php';
-require_once ROOT . 'lib/user.php';
-require_once ROOT . 'lib/utility.php';
-
-date_default_timezone_set('UTC');
 
 set_error_handler(
 
@@ -33,19 +22,19 @@ function db()
     static $db = null;
     if (is_null($db) || !is_resource($db))
     {
-        $db = mysql_connect('host', 'user', 'pass')
+        error_log("db connect: host");
+        $db = @mysql_connect('host', 'user', 'pass')
             or die('database'); mysql_select_db('user');
     }
     return $db;
 }
 
-db();
-
 function mc()
 {
     static $mc = null;
-    if (class_exists('Memcache'))
+    if (is_null($mc) && class_exists('Memcache'))
     {
+        error_log("mc connect: host");
         $mc = new Memcache();
         if (!$mc->addServer('host'))
             $mc = null;
@@ -53,44 +42,7 @@ function mc()
     return $mc;
 }
 
-mc();
-
-session_set_save_handler(
-
-    // open
-    function ($path, $name) {
-        return mysql_ping();
-    },
-    // close
-    function () {
-        return true;
-    },
-    // read
-    function ($id) {
-        error_log("(memcached) session read $id");
-        return mc()->get($id);
-    },
-    // write
-    function ($id, $data) {
-        error_log("(memcached) session save $id");
-        mc()->set($id, $data, 0, 86400);
-    },
-    // destroy
-    function ($id) {
-    },
-    // gc
-    function ($maxlife) {
-        // see close
-    }
-);
-
-// php destroys objects and classes before writing the session
-// trigger the write before said cleanup
-register_shutdown_function('session_write_close');
-
 ob_start('ob_gzhandler');
-session_start();
 
-
-
-require_once ROOT .'lib/host.php';
+require_once ROOT . 'lib/dns.php';
+require_once ROOT . 'lib/host.php';

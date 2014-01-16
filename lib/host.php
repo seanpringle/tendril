@@ -13,27 +13,58 @@ $clusters = array(
     gethostbyname('x1-master') => 'x1',
 );
 
-class Host extends Record
+class Host
 {
+    public $ok = false;
+    private $row = array();
+
     public function __construct($id=0)
     {
-        $this->_cache = Record::MEMCACHE;
-        $this->_expiry = 300;
+        $row = null;
 
-        if (is_string($id))
+        if (is_numeric($id) && $id > 0)
         {
-            $name = $id;
+            $row = sql::query('tendril.servers')
+                ->cache(sql::MEMCACHE, 300)
+                ->where_eq('id', $id)
+                ->fetch_one();
+        }
+        else
+        if (!is_numeric($id) && is_string($id))
+        {
+            $row = sql::query('tendril.servers')
+                ->cache(sql::MEMCACHE, 300)
+                ->where_eq('host', $id)->fetch_one();
 
-            $id = sql::query('tendril.servers')
-                ->where_eq('host', $name)->fetch_one();
-
-            if (!$id && preg_match('/^[a-z]{2}[0-9]+$/', $name))
+            if (!$row && preg_match('/^[a-z]{2}[0-9]+$/', $id))
             {
-                $id = sql::query('tendril.servers')
-                    ->where_like('host', "$name%")->fetch_one();
+                $row = sql::query('tendril.servers')
+                    ->cache(sql::MEMCACHE, 300)
+                    ->where_like('host', "$id%")->fetch_one();
             }
         }
-        parent::__construct('tendril.servers', $id);
+        else
+        if (is_array($id))
+        {
+            $row = $id;
+            
+            sql::query('tendril.servers')
+                ->cache(sql::MEMCACHE, 300)
+                ->where_eq('id', $row['id'])
+                ->recache($row);
+        }
+
+        if (is_array($row) && $row)
+        {
+            $this->row = $row;
+            $this->ok = true;
+        
+        }
+    }
+
+    public function __get($name)
+    {
+        return isset($this->row[$name]) ? $this->row[$name]: null;
     }
 
     public static function by_name_port($name, $port=3306)
@@ -55,7 +86,7 @@ class Host extends Record
 
     public function ipv4()
     {
-        return $this->ipv4 ?: gethostbyname($this->host);
+        return $this->ipv4 ?: dns_reverse($this->host);
     }
 
     public function name()

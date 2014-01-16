@@ -542,6 +542,18 @@ class sql
         return ($this->error) ? array($this->error, $this->error_msg) : null;
     }
 
+    public function recache($rows)
+    {
+        $sql = $this->rs_sql ? $this->rs_sql: $this->get_select();
+        $md5 = md5($sql);
+
+        if ($this->cache === sql::MEMCACHE)
+            cache::set($md5, $rows, $this->expire);
+
+        if ($this->cache)
+            self::$_result_cache[$md5] = gzcompress(serialize($rows));        
+    }
+
     // retrieve all available rows
     public function fetch_all($index=null)
     {

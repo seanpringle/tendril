@@ -80,7 +80,7 @@ function contact($secs)
 
 foreach ($hosts as $row)
 {
-    $h = new Host($row['id']);
+    $h = new Host($row);
 
     $master = '-';
 
