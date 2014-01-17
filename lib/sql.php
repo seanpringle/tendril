@@ -561,7 +561,7 @@ class sql
             cache::set($md5, $rows, $this->expire);
 
         if ($this->cache)
-            self::$_result_cache[$md5] = gzcompress(serialize($rows));        
+            self::$_result_cache[$md5] = gzcompress(serialize($rows));
     }
 
     // retrieve all available rows

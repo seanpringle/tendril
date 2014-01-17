@@ -47,7 +47,7 @@ class Host
         if (is_array($id))
         {
             $row = $id;
-            
+
             sql::query('tendril.servers')
                 ->cache(sql::MEMCACHE, 300)
                 ->where_eq('id', $row['id'])

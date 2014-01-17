@@ -2,20 +2,20 @@
 
 class Package_Dashboard extends Package
 {
-	public function page()
-	{
-		list ($cols, $rows) = $this->data_index();
-		include ROOT .'tpl/dashboard/index.php';
-	}
+    public function page()
+    {
+        list ($cols, $rows) = $this->data_index();
+        include ROOT .'tpl/dashboard/index.php';
+    }
 
-	private function data_index()
-	{
-		list ($cols, $rows) = $this->data_com_kill();
-		return array($cols, $rows);
-	}
+    private function data_index()
+    {
+        list ($cols, $rows) = $this->data_com_kill();
+        return array($cols, $rows);
+    }
 
-	private function data_com_kill()
-	{
+    private function data_com_kill()
+    {
         $cols = array(
             'x' => array('Hour', 'datetime'),
         );
@@ -25,7 +25,7 @@ class Package_Dashboard extends Package
         );
 
         $names = array(
-        	'Com_kill',
+            'Com_kill',
         );
 
         $name_ids = sql::query('tendril.strings')
@@ -57,11 +57,11 @@ class Package_Dashboard extends Package
         $last = $rows[0]['y1'];
         foreach ($rows as $i => $row)
         {
-        	$next = $rows[$i]['y1'];
-        	$rows[$i]['y1'] -= $last;
-        	$last = $next;
+            $next = $rows[$i]['y1'];
+            $rows[$i]['y1'] -= $last;
+            $last = $next;
         }
 
         return array( $cols, $rows );
-	}
+    }
 }
