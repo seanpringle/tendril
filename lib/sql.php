@@ -394,7 +394,17 @@ class sql
         $this->join[] = sprintf('left join '.self::quote_name($table) .($alias ? ' '.$alias:'') . ' on ' . $clause);
         return $this;
     }
-    // set key/val pair to be written in undate or single row insert
+    // right outer join a table
+    public function right_join($table, $on=null)
+    {
+        $alias = null; if (strpos($table, ' '))
+            list ($table, $alias) = preg_split('/\s+/', trim($table));
+
+        $args = func_get_args(); array_shift($args);
+        $clause = call_user_func_array('self::clause', $args);
+        $this->join[] = sprintf('right join '.self::quote_name($table) .($alias ? ' '.$alias:'') . ' on ' . $clause);
+        return $this;
+    }    // set key/val pair to be written in undate or single row insert
     public function set($pairs, $val=null)
     {
         if (is_scalar($pairs))
@@ -600,12 +610,7 @@ class sql
             $rows[$index ? $res[$index]: $j] = $res;
         }
 
-        if ($this->cache === sql::MEMCACHE)
-            cache::set($md5, $rows, $this->expire);
-
-        if ($this->cache)
-            self::$_result_cache[$md5] = gzcompress(serialize($rows));
-
+        $this->recache($rows);
         return $rows;
     }
 
@@ -681,10 +686,10 @@ class sql
     }
 
     // initializer
-    public static function command($command, $db)
+    public static function command($command, $db=null)
     {
         $s = new static();
-        $s->db($db);
+        if ($db) $s->db($db);
         $s->execute($command);
         return $s;
     }

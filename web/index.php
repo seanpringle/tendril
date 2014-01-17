@@ -36,5 +36,6 @@ function pkg() { global $_pkg; return $_pkg; }
 $_pkg->process();
 
 ob_get_clean();
+ob_start('ob_gzhandler');
 
 $_pkg->display();

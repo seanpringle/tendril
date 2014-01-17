@@ -42,7 +42,5 @@ function mc()
     return $mc;
 }
 
-ob_start('ob_gzhandler');
-
 require_once ROOT . 'lib/dns.php';
 require_once ROOT . 'lib/host.php';

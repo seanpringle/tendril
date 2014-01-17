@@ -43,6 +43,11 @@ class Package_Report extends Package
 				include ROOT .'tpl/report/index_missing.php';
 				break;
 
+			case 'indexes_diff':
+				list ($rows) = $this->data_indexes_diff();
+				include ROOT .'tpl/report/indexes_diff.php';
+				break;
+
 			case 'innodb':
 				list ($rows) = $this->data_innodb();
 				include ROOT .'tpl/report/innodb.php';
@@ -527,6 +532,69 @@ class Package_Report extends Package
 			}
 
 			$rows = $search->fetch_all();
+		}
+
+		return array( $rows );
+	}
+
+	private function data_indexes_diff()
+	{
+		$hostA  = $this->request('a');
+		$hostB  = $this->request('b');
+		$schema = $this->request('schema');
+
+		$rows = array();
+
+		if ($hostA && $hostB)
+		{
+			$hA = new Host($hostA);
+			$hB = new Host($hostB);
+
+			$searchA = sql::query('tendril.statistics a')
+				->fields(array(
+					'a.table_schema as schema_name',
+					'a.table_name as table_name',
+					'a.index_name as index_name_a',
+					'b.index_name as index_name_b',
+				))
+				->left_join('tendril.statistics b',
+					'a.table_schema = b.table_schema'
+					.' and a.table_name = b.table_name'
+					.' and a.index_name = b.index_name'
+					.' and b.server_id = ('.$hB->id.')')
+				->where('a.server_id = ('.$hA->id.')')
+				->having('index_name_b is null');
+
+			if ($schema)
+			{
+				$searchA->where_regexp('a.table_schema', $schema);
+			}
+
+			$searchB = sql::query('tendril.statistics b')
+				->fields(array(
+					'b.table_schema as schema_name',
+					'b.table_name as table_name',
+					'a.index_name as index_name_a',
+					'b.index_name as index_name_b',
+				))
+				->left_join('tendril.statistics a',
+					'b.table_schema = a.table_schema'
+					.' and b.table_name = a.table_name'
+					.' and b.index_name = a.index_name'
+					.' and a.server_id = ('.$hA->id.')')
+				->where('b.server_id = ('.$hB->id.')')
+				->having('index_name_a is null');
+
+			if ($schema)
+			{
+				$searchB->where_regexp('b.table_schema', $schema);
+			}
+
+			$search = 'select * from'
+				.' ('.$searchA->get_select() .' union '. $searchB->get_select().') t'
+				.' order by schema_name, table_name';
+
+			$rows = sql::command($search)->fetch_all();
 		}
 
 		return array( $rows );

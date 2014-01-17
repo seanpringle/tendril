@@ -61,6 +61,10 @@
 	<li>
 		<a href="/report/index_missing">Index Missing</a>
 	</li>
+
+	<li>
+		<a href="/report/indexes_diff">Indexes Diff</a>
+	</li>
 </ul>
 
 <ul>

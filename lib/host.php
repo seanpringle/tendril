@@ -58,7 +58,6 @@ class Host
         {
             $this->row = $row;
             $this->ok = true;
-        
         }
     }
 
