@@ -10,7 +10,7 @@ server=$(echo "$host.$port" | sed 's/\./_/g')
 
 cat <<eod
 
-select @server_id := id from servers where host = '${host}' and port = ${port}; 
+select @server_id := id from servers where host = '${host}' and port = ${port};
 
 delete from servers where id = @server_id;
 
@@ -31,6 +31,7 @@ drop table if exists ${server}_process;
 drop table if exists ${server}_sch_privs;
 drop table if exists ${server}_schemata;
 drop table if exists ${server}_stats;
+drop table if exists ${server}_triggers;
 drop table if exists ${server}_table_stats;
 drop table if exists ${server}_tables;
 drop table if exists ${server}_tablenames;

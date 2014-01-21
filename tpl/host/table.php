@@ -16,6 +16,10 @@
     white-space: nowrap;
 }
 
+#host-list td.contact.long {
+    color: red;
+}
+
 #host-list td.replication {
     font-family: monospace;
     font-size: 120%;
@@ -161,7 +165,7 @@ foreach ($hosts as $row)
             'html' => escape(uptime($uptime)),
         )),
         tag('td', array(
-            'class' => sprintf('contact %s', $contact < (time() - 3600) ? 'long': 'short'),
+            'class' => sprintf('contact %s', $contact < (time() - 60) ? 'long': 'short'),
             'html' => $contact ? escape(contact(time() - $contact)): '',
         )),
         tag('td', array(

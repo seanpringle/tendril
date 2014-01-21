@@ -36,7 +36,7 @@ include 'table.php';
 ?>
 
 <nav>
-    <a href="/chart?hosts=<?= urlencode($host->m_server_id ? $host->name_short(): sprintf('family:%s', $host->name_short())) ?>&vars=questions&mode=delta">family chart</a>
+    <a href="/chart?hosts=<?= urlencode($host->m_master_id ? $host->name_short(): sprintf('family:%s', $host->name_short())) ?>&vars=questions&mode=delta">family chart</a>
 </nav>
 
 <h3>
@@ -133,8 +133,8 @@ include 'table.php';
 
             drawChart(
                 'chart<?= $hash ?>',
-                "<?= escape($title) ?>",
-                "<?= escape($report->description()) ?>",
+                <?= json_encode($title) ?>,
+                <?= json_encode($report->description()) ?>,
                 "<?= $report->fields() ?>",
                 "<?= get_class($report) ?>"
             );

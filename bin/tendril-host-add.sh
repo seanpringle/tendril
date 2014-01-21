@@ -124,6 +124,33 @@ CREATE TABLE ${server}_stats (
   INDEX (TABLE_SCHEMA, TABLE_NAME)
 ) ENGINE=FEDERATED CONNECTION='${federated}/STATISTICS' DEFAULT CHARSET=utf8;
 
+drop table if exists ${server}_triggers;
+CREATE TABLE ${server}_triggers (
+  TRIGGER_CATALOG varchar(512) NOT NULL DEFAULT '',
+  TRIGGER_SCHEMA varchar(64) NOT NULL DEFAULT '',
+  TRIGGER_NAME varchar(64) NOT NULL DEFAULT '',
+  EVENT_MANIPULATION varchar(6) NOT NULL DEFAULT '',
+  EVENT_OBJECT_CATALOG varchar(512) NOT NULL DEFAULT '',
+  EVENT_OBJECT_SCHEMA varchar(64) NOT NULL DEFAULT '',
+  EVENT_OBJECT_TABLE varchar(64) NOT NULL DEFAULT '',
+  ACTION_ORDER bigint(4) NOT NULL DEFAULT '0',
+  ACTION_CONDITION longtext,
+  ACTION_STATEMENT longtext NOT NULL,
+  ACTION_ORIENTATION varchar(9) NOT NULL DEFAULT '',
+  ACTION_TIMING varchar(6) NOT NULL DEFAULT '',
+  ACTION_REFERENCE_OLD_TABLE varchar(64) DEFAULT NULL,
+  ACTION_REFERENCE_NEW_TABLE varchar(64) DEFAULT NULL,
+  ACTION_REFERENCE_OLD_ROW varchar(3) NOT NULL DEFAULT '',
+  ACTION_REFERENCE_NEW_ROW varchar(3) NOT NULL DEFAULT '',
+  CREATED datetime DEFAULT NULL,
+  SQL_MODE varchar(8192) NOT NULL DEFAULT '',
+  DEFINER varchar(189) NOT NULL DEFAULT '',
+  CHARACTER_SET_CLIENT varchar(32) NOT NULL DEFAULT '',
+  COLLATION_CONNECTION varchar(32) NOT NULL DEFAULT '',
+  DATABASE_COLLATION varchar(32) NOT NULL DEFAULT '',
+  INDEX (TRIGGER_SCHEMA, TRIGGER_NAME)
+) ENGINE=FEDERATED CONNECTION='${federated}/TRIGGERS' DEFAULT CHARSET=utf8;
+
 drop table if exists ${server}_sch_privs;
 CREATE TABLE ${server}_sch_privs (
   GRANTEE varchar(81) NOT NULL DEFAULT '',
@@ -317,10 +344,18 @@ create event ${server}_schema
     delete from statistics where server_id = @server_id;
     insert into statistics select @server_id, t4.* from t4;
 
+    -- ref lookup for each schema and table name
+    create temporary table t5 select a.* from ${server}_schemata b
+      straight_join ${server}_triggers a force index (TRIGGER_SCHEMA)
+      on b.SCHEMA_NAME = a.TRIGGER_SCHEMA;
+    delete from triggers where server_id = @server_id;
+    insert into triggers select @server_id, t5.* from t5;
+
     drop temporary table if exists t1;
     drop temporary table if exists t2;
     drop temporary table if exists t3;
     drop temporary table if exists t4;
+    drop temporary table if exists t5;
 
     update servers set event_schema = now() where id = @server_id;
     do release_lock('${server}_schema');
