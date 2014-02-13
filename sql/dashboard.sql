@@ -118,8 +118,6 @@ create event insert_global_status_log_1d
     do release_lock('delete_global_status_log_7d');
   end ;;
 
-
-
   create event insert_global_status_log_5m
   on schedule every 5 minute starts date(now())
   do begin

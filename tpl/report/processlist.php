@@ -48,6 +48,7 @@
         <th>Connection</th>
         <th>User</th>
         <th>Client</th>
+        <th>Port</th>
         <th>Database</th>
         <th>Command</th>
         <th>Time</th>
@@ -83,8 +84,12 @@ foreach ($rows as $row)
         )),
         tag('td', array(
             'class' => 'host',
-            'title' => escape($client),
+            'title' => escape($client.':'.$port),
             'html' => escape($client_short),
+        )),
+        tag('td', array(
+            'class' => 'port',
+            'html' => escape($port),
         )),
         tag('td', array(
             'class' => 'db',
@@ -116,7 +121,7 @@ foreach ($rows as $row)
     $cells = array(
         tag('td', array(
             'class' => 'info',
-            'colspan' => 7,
+            'colspan' => 8,
             'html' => trim($sample) ? escape($sample): 'n/a',
         )),
     );

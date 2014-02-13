@@ -7,7 +7,11 @@ define('ROOT', dirname(dirname(__FILE__)).'/');
 require_once ROOT .'lib/utility.php';
 require_once ROOT .'lib/cache.php';
 require_once ROOT .'lib/sql.php';
+
 require_once ROOT .'lib/config.php';
+
+require_once ROOT . 'lib/dns.php';
+require_once ROOT . 'lib/host.php';
 
 // find out where we are
 $path    = @trim(array_shift(explode('?', $_SERVER['REQUEST_URI'])), '/');

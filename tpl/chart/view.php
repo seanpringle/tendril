@@ -75,7 +75,7 @@ function drawChart()
 
 <ul>
 	<li><a href="?hosts=masters&vars=questions&mode=delta">Masters, Questions</a></li>
-    <li><a href="?hosts=db10%2852|60|19|20|45|06|28%29&vars=questions&mode=delta">LB 400 slave per shard, Questions</a></li>
+    <li><a href="?hosts=db10(51|60|19|59|45|06|39)&vars=questions&mode=delta">LB 400 slave per shard, Questions</a></li>
 </ul>
 
 <datalist id="vars">

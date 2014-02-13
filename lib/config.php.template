@@ -41,6 +41,3 @@ function mc()
     }
     return $mc;
 }
-
-require_once ROOT . 'lib/dns.php';
-require_once ROOT . 'lib/host.php';

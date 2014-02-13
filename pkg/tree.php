@@ -19,6 +19,10 @@ class Package_Tree extends Package
             'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
             'html' => escape($host->name_short()),
             'title' => sprintf('%s:%d', $host->name(), $host->port()),
+            'class' => sprintf('%s %s',
+                $host->enabled ? 'enabled': 'disabled',
+                $this->replag[$host->id] > 60 ? 'lagging': 'replicating'
+            ),
         ));
 
         if (!$host->m_master_id)

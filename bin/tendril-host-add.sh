@@ -29,6 +29,8 @@ insert into servers (host, port)
   left join servers b on b.host = '${host}' and b.port = '${port}'
   where b.host is null and b.port is null limit 1;
 
+update servers set enabled = 1 where host = '${host}' and port = ${port};
+
 drop event if exists ${server}_schema;
 drop event if exists ${server}_activity;
 drop event if exists ${server}_status;
@@ -317,47 +319,52 @@ create event ${server}_schema
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @server_id := id from servers where host = '${host}' and port = ${port};
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
 
-    create temporary table t1 as select * from ${server}_schemata;
-    delete from schemata where server_id = @server_id;
-    insert into schemata select @server_id, t1.* from t1;
+    if (@enabled = 1) then
 
-    -- ref lookup for each schema and table name
-    create temporary table t2 select a.* from ${server}_tablenames b
-      straight_join ${server}_tables a force index (TABLE_SCHEMA)
-      on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
-    delete from tables where server_id = @server_id;
-    insert into tables select @server_id, t2.* from t2;
+      create temporary table t1 as select * from ${server}_schemata;
+      delete from schemata where server_id = @server_id;
+      insert into schemata select @server_id, t1.* from t1;
 
-    -- ref lookup for each schema and table name
-    create temporary table t3 select a.* from ${server}_tablenames b
-      straight_join ${server}_columns a force index (TABLE_SCHEMA)
-      on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
-    delete from columns where server_id = @server_id;
-    insert into columns select @server_id, t3.* from t3;
+      -- ref lookup for each schema and table name
+      create temporary table t2 select a.* from ${server}_tablenames b
+        straight_join ${server}_tables a force index (TABLE_SCHEMA)
+        on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
+      delete from tables where server_id = @server_id;
+      insert into tables select @server_id, t2.* from t2;
 
-    -- ref lookup for each schema and table name
-    create temporary table t4 select a.* from ${server}_tablenames b
-      straight_join ${server}_stats a force index (TABLE_SCHEMA)
-      on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
-    delete from statistics where server_id = @server_id;
-    insert into statistics select @server_id, t4.* from t4;
+      -- ref lookup for each schema and table name
+      create temporary table t3 select a.* from ${server}_tablenames b
+        straight_join ${server}_columns a force index (TABLE_SCHEMA)
+        on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
+      delete from columns where server_id = @server_id;
+      insert into columns select @server_id, t3.* from t3;
 
-    -- ref lookup for each schema and table name
-    create temporary table t5 select a.* from ${server}_schemata b
-      straight_join ${server}_triggers a force index (TRIGGER_SCHEMA)
-      on b.SCHEMA_NAME = a.TRIGGER_SCHEMA;
-    delete from triggers where server_id = @server_id;
-    insert into triggers select @server_id, t5.* from t5;
+      -- ref lookup for each schema and table name
+      create temporary table t4 select a.* from ${server}_tablenames b
+        straight_join ${server}_stats a force index (TABLE_SCHEMA)
+        on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
+      delete from statistics where server_id = @server_id;
+      insert into statistics select @server_id, t4.* from t4;
 
-    drop temporary table if exists t1;
-    drop temporary table if exists t2;
-    drop temporary table if exists t3;
-    drop temporary table if exists t4;
-    drop temporary table if exists t5;
+      -- ref lookup for each schema and table name
+      create temporary table t5 select a.* from ${server}_schemata b
+        straight_join ${server}_triggers a force index (TRIGGER_SCHEMA)
+        on b.SCHEMA_NAME = a.TRIGGER_SCHEMA;
+      delete from triggers where server_id = @server_id;
+      insert into triggers select @server_id, t5.* from t5;
 
-    update servers set event_schema = now() where id = @server_id;
+      drop temporary table if exists t1;
+      drop temporary table if exists t2;
+      drop temporary table if exists t3;
+      drop temporary table if exists t4;
+      drop temporary table if exists t5;
+
+      update servers set event_schema = now() where id = @server_id;
+
+    end if;
+
     do release_lock('${server}_schema');
   end ;;
 
@@ -369,18 +376,23 @@ create event ${server}_privileges
         signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @server_id := id from servers where host = '${host}' and port = ${port};
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
 
-    delete from schema_privileges where server_id = @server_id;
-    insert into schema_privileges select @server_id, t1.* from ${server}_sch_privs t1;
+    if (@enabled = 1) then
 
-    delete from table_privileges where server_id = @server_id;
-    insert into table_privileges select @server_id, t2.* from ${server}_tbl_privs t2;
+      delete from schema_privileges where server_id = @server_id;
+      insert into schema_privileges select @server_id, t1.* from ${server}_sch_privs t1;
 
-    delete from column_privileges where server_id = @server_id;
-    insert into column_privileges select @server_id, t3.* from ${server}_col_privs t3;
+      delete from table_privileges where server_id = @server_id;
+      insert into table_privileges select @server_id, t2.* from ${server}_tbl_privs t2;
 
-    update servers set event_privileges = now() where id = @server_id;
+      delete from column_privileges where server_id = @server_id;
+      insert into column_privileges select @server_id, t3.* from ${server}_col_privs t3;
+
+      update servers set event_privileges = now() where id = @server_id;
+
+    end if;
+
     do release_lock('${server}_privileges');
   end ;;
 
@@ -392,59 +404,64 @@ create event ${server}_usage
         signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @server_id := id from servers where host = '${host}' and port = ${port};
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
 
-    create temporary table t1 as select * from ${server}_user_stats;
-    create temporary table t2 as select * from ${server}_table_stats;
-    create temporary table t3 as select * from ${server}_client_stats;
-    create temporary table t4 as select * from ${server}_index_stats;
+    if (@enabled = 1) then
 
-    delete from user_statistics where server_id = @server_id;
-    insert into user_statistics select @server_id, user,
-      sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
-      sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
-      sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
-      sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
-      from t1 group by user;
-    insert into user_statistics_log select @server_id, now(), user,
-      sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
-      sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
-      sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
-      sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
-      from t1 group by user;
+      create temporary table t1 as select * from ${server}_user_stats;
+      create temporary table t2 as select * from ${server}_table_stats;
+      create temporary table t3 as select * from ${server}_client_stats;
+      create temporary table t4 as select * from ${server}_index_stats;
 
-    delete from table_statistics where server_id = @server_id;
-    insert into table_statistics select @server_id, table_schema, table_name, sum(rows_read), sum(rows_changed), sum(rows_changed_x_indexes)
-      from t2 group by table_schema, table_name;
-    insert into table_statistics_log select @server_id, now(), table_schema, table_name, sum(rows_read), sum(rows_changed), sum(rows_changed_x_indexes)
-      from t2 group by table_schema, table_name;
+      delete from user_statistics where server_id = @server_id;
+      insert into user_statistics select @server_id, user,
+        sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
+        sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
+        sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
+        sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
+        from t1 group by user;
+      insert into user_statistics_log select @server_id, now(), user,
+        sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
+        sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
+        sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
+        sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
+        from t1 group by user;
 
-    delete from client_statistics where server_id = @server_id;
-    insert into client_statistics select @server_id, client,
-      sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
-      sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
-      sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
-      sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
-      from t3 group by client;
-    insert into client_statistics_log select @server_id, now(), client,
-      sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
-      sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
-      sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
-      sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
-      from t3 group by client;
+      delete from table_statistics where server_id = @server_id;
+      insert into table_statistics select @server_id, table_schema, table_name, sum(rows_read), sum(rows_changed), sum(rows_changed_x_indexes)
+        from t2 group by table_schema, table_name;
+      insert into table_statistics_log select @server_id, now(), table_schema, table_name, sum(rows_read), sum(rows_changed), sum(rows_changed_x_indexes)
+        from t2 group by table_schema, table_name;
 
-    delete from index_statistics where server_id = @server_id;
-    insert into index_statistics select @server_id, table_schema, table_name, index_name, sum(rows_read)
-      from t4 group by table_schema, table_name, index_name;
-    insert into index_statistics_log select @server_id, now(), table_schema, table_name, index_name, sum(rows_read)
-      from t4 group by table_schema, table_name, index_name;
+      delete from client_statistics where server_id = @server_id;
+      insert into client_statistics select @server_id, client,
+        sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
+        sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
+        sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
+        sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
+        from t3 group by client;
+      insert into client_statistics_log select @server_id, now(), client,
+        sum(total_connections), sum(concurrent_connections), sum(connected_time), sum(busy_time), sum(cpu_time), sum(bytes_received),
+        sum(bytes_sent), sum(binlog_bytes_written), sum(rows_read), sum(rows_sent), sum(rows_deleted), sum(rows_inserted), sum(rows_updated),
+        sum(select_commands), sum(update_commands), sum(other_commands), sum(commit_transactions), sum(rollback_transactions),
+        sum(denied_connections), sum(lost_connections), sum(access_denied), sum(empty_queries)
+        from t3 group by client;
 
-    drop temporary table if exists t1;
-    drop temporary table if exists t2;
-    drop temporary table if exists t3;
-    drop temporary table if exists t4;
+      delete from index_statistics where server_id = @server_id;
+      insert into index_statistics select @server_id, table_schema, table_name, index_name, sum(rows_read)
+        from t4 group by table_schema, table_name, index_name;
+      insert into index_statistics_log select @server_id, now(), table_schema, table_name, index_name, sum(rows_read)
+        from t4 group by table_schema, table_name, index_name;
 
-    update servers set event_usage = now() where id = @server_id;
+      drop temporary table if exists t1;
+      drop temporary table if exists t2;
+      drop temporary table if exists t3;
+      drop temporary table if exists t4;
+
+      update servers set event_usage = now() where id = @server_id;
+
+    end if;
+
     do release_lock('${server}_usage');
   end ;;
 
@@ -456,22 +473,27 @@ create event ${server}_status
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @server_id := id from servers where host = '${host}' and port = ${port};
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
 
-    create temporary table t1 as select * from ${server}_global_status;
-    delete from global_status where server_id = @server_id;
-    insert into global_status select @server_id, lower(VARIABLE_NAME), variable_value from t1;
+    if (@enabled = 1) then
 
-    insert ignore into strings (string) select lower(VARIABLE_NAME) from t1;
+      create temporary table t1 as select * from ${server}_global_status;
+      delete from global_status where server_id = @server_id;
+      insert into global_status select @server_id, lower(VARIABLE_NAME), variable_value from t1;
 
-    insert into global_status_log (server_id, name_id, value)
-      select @server_id, n.id, gs.variable_value from global_status gs
-        join strings n on gs.variable_name = n.string
-          where gs.server_id = @server_id and gs.variable_value regexp '^[0-9\.]+';
+      insert ignore into strings (string) select lower(VARIABLE_NAME) from t1;
 
-    drop temporary table if exists t1;
+      insert into global_status_log (server_id, name_id, value)
+        select @server_id, n.id, gs.variable_value from global_status gs
+          join strings n on gs.variable_name = n.string
+            where gs.server_id = @server_id and gs.variable_value regexp '^[0-9\.]+';
 
-    update servers set event_status = now() where id = @server_id;
+      drop temporary table if exists t1;
+
+      update servers set event_status = now() where id = @server_id;
+
+    end if;
+
     do release_lock('${server}_status');
   end ;;
 
@@ -483,12 +505,17 @@ create event ${server}_variables
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @server_id := id from servers where host = '${host}' and port = ${port};
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
 
-    delete from global_variables where server_id = @server_id;
-    insert into global_variables select @server_id, lower(VARIABLE_NAME), variable_value from ${server}_global_vars;
+    if (@enabled = 1) then
 
-    update servers set event_variables = now() where id = @server_id;
+      delete from global_variables where server_id = @server_id;
+      insert into global_variables select @server_id, lower(VARIABLE_NAME), variable_value from ${server}_global_vars;
+
+      update servers set event_variables = now() where id = @server_id;
+
+    end if;
+
     do release_lock('${server}_variables');
   end ;;
 
@@ -500,51 +527,56 @@ create event ${server}_activity
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @server_id := id from servers where host = '${host}' and port = ${port};
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
 
-    delete from processlist where server_id = @server_id;
-    insert into processlist select @server_id, t.* from ${server}_process t;
+    if (@enabled = 1) then
 
-    delete from innodb_trx where server_id = @server_id;
-    insert into innodb_trx select @server_id, t.* from ${server}_innodb_trx t;
+      delete from processlist where server_id = @server_id;
+      insert into processlist select @server_id, t.* from ${server}_process t;
 
-    -- mariadb 5.5 bug
-    update processlist set time = 0 where time = 2147483647;
+      delete from innodb_trx where server_id = @server_id;
+      insert into innodb_trx select @server_id, t.* from ${server}_innodb_trx t;
 
-    insert into processlist_query_log
-      (server_id, id, user, host, db, time, info)
-      select p.server_id, p.id, p.user, p.host, p.db, p.time, p.info
-      from processlist p
-      left join processlist_query_log q
-        on p.server_id = q.server_id
-        and p.id = q.id
-        and p.user = q.user
-        and p.host = q.host
-        and p.db = q.db
-        and p.info = q.info
-        and p.time > q.time
-        and q.stamp >= now() - interval p.time second
-      where
-        p.server_id = @server_id
-        and p.command = 'Query'
-        and q.server_id is null;
+      -- mariadb 5.5 bug
+      update processlist set time = 0 where time = 2147483647;
 
-    update processlist_query_log q
-      join processlist p
-        on p.server_id = q.server_id
-        and p.id = q.id
-        and p.user = q.user
-        and p.host = q.host
-        and p.db = q.db
-        and p.info = q.info
-        and p.time > q.time
-        and q.stamp > now() - interval p.time second
-      set q.time = p.time
-      where
-        q.server_id = @server_id
-        and p.command = 'Query';
+      insert into processlist_query_log
+        (server_id, id, user, host, db, time, info)
+        select p.server_id, p.id, p.user, p.host, p.db, p.time, p.info
+        from processlist p
+        left join processlist_query_log q
+          on p.server_id = q.server_id
+          and p.id = q.id
+          and p.user = q.user
+          and p.host = q.host
+          and p.db = q.db
+          and p.info = q.info
+          and p.time > q.time
+          and q.stamp >= now() - interval p.time second
+        where
+          p.server_id = @server_id
+          and p.command = 'Query'
+          and q.server_id is null;
 
-    update servers set event_activity = now() where id = @server_id;
+      update processlist_query_log q
+        join processlist p
+          on p.server_id = q.server_id
+          and p.id = q.id
+          and p.user = q.user
+          and p.host = q.host
+          and p.db = q.db
+          and p.info = q.info
+          and p.time > q.time
+          and q.stamp > now() - interval p.time second
+        set q.time = p.time
+        where
+          q.server_id = @server_id
+          and p.command = 'Query';
+
+      update servers set event_activity = now() where id = @server_id;
+
+    end if;
+
     do release_lock('${server}_activity');
   end ;;
 

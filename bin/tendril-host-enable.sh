@@ -12,6 +12,8 @@ cat <<eod
 
 select @server_id := id from servers where host = '${host}' and port = ${port};
 
+update servers set enabled = 1 where host = '${host}' and port = ${port};
+
 alter event ${server}_schema enable;
 alter event ${server}_activity enable;
 alter event ${server}_status enable;
