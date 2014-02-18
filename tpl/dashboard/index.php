@@ -1,49 +1,81 @@
+<?php
 
-<script type="text/javascript">
+$events = array(
+    'host disabled'
+        => array(
+            '',
+            $hosts_disabled,
+        ),
+    'event_activity'
+        => array(
+            'over 1 min',
+            $event_activity,
+        ),
+    'event_variables'
+        => array(
+            'over 10 min',
+            $event_variables,
+        ),
+    'event_status'
+        => array(
+            'over 10 min',
+            $event_status,
+        ),
+    'event_cron'
+        => array(
+            'over 10 min',
+            $event_cron,
+        ),
+    'event_privileges'
+        => array(
+            'over 2 days',
+            $event_privileges,
+        ),
+    'event_schema'
+        => array(
+            'over 2 days',
+            $event_schema,
+        ),
+);
 
-    google.setOnLoadCallback(drawChart);
+?>
 
-    function drawChart() {
+<table>
 
-        var data = new google.visualization.DataTable();
+<?php
 
-        var cols = <?= json_encode($cols) ?>;
-        var rows = <?= json_encode($rows) ?>;
+foreach ($events as $name => $row)
+{
+    list($comment, $ids) = $row;
 
-        for (var j in cols)
+    if ($ids)
+    {
+        $links = array();
+        foreach ($ids as $id)
         {
-            data.addColumn(cols[j][1], cols[j][0]);
+            $host = new Host($id);
+            $links[] = tag('a', array(
+                'href' => sprintf('/host/%s/%d', $host->name(), $host->port()),
+                'html' => $host->describe(),
+            ));
         }
 
-        for (var i = 0; i < rows.length; i++)
-        {
-            var point = [];
-            for (var j in cols)
-            {
-                if (cols[j][1] == 'date' || cols[j][1] == 'datetime')
-                    point.push(new Date(rows[i][j].replace(/-/g, '/')));
-                else
-                    point.push(rows[i][j]);
-            }
-
-            data.addRow(point);
-        }
-
-        var options = {
-            'title'  : 'Com_kill',
-            'width'  : 500,
-            'height' : 200,
-            'legend' : { 'position': 'top' },
-            'chartArea' : { 'width': '90%', 'left': '10%' }
-        };
-
-        var chart = new google.visualization.AreaChart($('#com_kill').get(0));
-        chart.draw(data, options);
-
+        print tag('tr', array(
+            'html' =>
+                tag('td', array(
+                    'html' => escape($name),
+                )).
+                tag('td', array(
+                    'html' => escape($comment),
+                )).
+                tag('td', array(
+                    'html' => join(', ', $links),
+                ))
+            )
+        );
     }
+}
+?>
 
-</script>
+</table>
 
-
-<div id="com_kill">
-</div>

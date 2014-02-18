@@ -2,66 +2,65 @@
 
 class Package_Dashboard extends Package
 {
+    public function process()
+    {
+
+    }
+
     public function page()
     {
-        list ($cols, $rows) = $this->data_index();
-        include ROOT .'tpl/dashboard/index.php';
+        switch ($this->action())
+        {
+            default:
+                list ($hosts_disabled, $event_activity, $event_variables, $event_status, $event_cron, $event_privileges, $event_schema) = $this->data_index();
+                include ROOT .'tpl/dashboard/index.php';
+        }
     }
 
     private function data_index()
     {
-        list ($cols, $rows) = $this->data_com_kill();
-        return array($cols, $rows);
-    }
+        $hosts_disabled = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 0)
+            ->fetch_field('id');
 
-    private function data_com_kill()
-    {
-        $cols = array(
-            'x' => array('Hour', 'datetime'),
-        );
+        $event_activity = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 1)
+            ->where('event_activity < now() - interval 1 minute')
+            ->fetch_field('id');
 
-        $fields = array(
-            'now() - interval s.value * 10 minute as x',
-        );
+        $event_variables = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 1)
+            ->where('event_variables < now() - interval 10 minute')
+            ->fetch_field('id');
 
-        $names = array(
-            'Com_kill',
-        );
+        $event_status = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 1)
+            ->where('event_activity < now() - interval 10 minute')
+            ->fetch_field('id');
 
-        $name_ids = sql::query('tendril.strings')
-            ->where_in('string', map('strtolower', $names))
-            ->fetch_pair('string', 'id');
+        $event_cron = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 1)
+            ->where('event_cron < now() - interval 10 minute')
+            ->fetch_field('id');
 
-        foreach ($names as $i => $name)
-        {
-            $cols['y'.($i+1)] = array($name, 'number');
+        $event_privileges = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 1)
+            ->where('event_privileges < now() - interval 2 day')
+            ->fetch_field('id');
 
-            $fields[] = sprintf('(%s) as y%d',
-                sql::query('tendril.global_status_log gsl')
-                    ->fields('cast(ifnull(sum(gsl.value),0) as unsigned)')
-                    ->where('gsl.stamp between x - interval 10 minute and x')
-                    ->where_eq('gsl.name_id', $name_ids[strtolower($name)])
-                    ->get_select(),
-                $i+1
-            );
-        }
+        $event_schema = sql::query('servers')
+            ->fields('id')
+            ->where_eq('enabled', 1)
+            ->where('event_schema < now() - interval 2 day')
+            ->fetch_field('id');
 
-        $rows = sql::query('sequence s')
-            ->cache(sql::MEMCACHE, 300)
-            ->where_between('value', 1, 143)
-            ->having('x is not null')
-            ->fields($fields)
-            ->order('value')
-            ->fetch_all();
-
-        $last = $rows[0]['y1'];
-        foreach ($rows as $i => $row)
-        {
-            $next = $rows[$i]['y1'];
-            $rows[$i]['y1'] -= $last;
-            $last = $next;
-        }
-
-        return array( $cols, $rows );
+        return array( $hosts_disabled, $event_activity, $event_variables, $event_status, $event_cron, $event_privileges, $event_schema );
     }
 }
+

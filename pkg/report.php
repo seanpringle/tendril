@@ -719,7 +719,7 @@ class Package_Report extends Package
             ->fields('(max(value)-min(value)) / 3600');
 
         $search = sql::query('tendril.servers srv')
-            ->cache(sql::MEMCACHE, self::EXPIRE)
+            ->cache(sql::MEMCACHE, 300) // global_status_log_5m
 
             ->order('srv.host')
             ->order('srv.port')

@@ -21,7 +21,7 @@ $request = strlen($path) ? explode('/', $path): array();
 $package = count($request)
     ? (preg_match('/^(21)?[a-z]+[a-z0-9_\-]+$/i', $request[0])
         ? array_shift($request) : '404')
-    : 'default';
+    : cfg('package.default');
 
 if (!file_exists(ROOT ."pkg/$package.php"))
     $package = '404';

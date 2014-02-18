@@ -69,7 +69,6 @@ class Package_Chart extends Package_Report
                     foreach ($names as $name => $name_id)
                     {
                         $table = preg_match('/Seconds_Behind_Master/', $name)
-                            //? 'tendril.slave_status_log': 'dbmon.global_status_log_5m';
                             ? 'tendril.slave_status_log': 'tendril.global_status_log';
 
                         $subqueries[] = sprintf('(%s)',
@@ -96,7 +95,6 @@ class Package_Chart extends Package_Report
                         );
 
                         $table = preg_match('/Seconds_Behind_Master/', $name)
-                            //? 'tendril.slave_status_log': 'dbmon.global_status_log_5m';
                             ? 'tendril.slave_status_log': 'tendril.global_status_log';
 
                         $fields[] = sprintf('(%s) as y%d',

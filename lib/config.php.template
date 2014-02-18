@@ -46,3 +46,13 @@ function mc()
     }
     return $mc;
 }
+
+function cfg($key, $def=null)
+{
+    switch ($key)
+    {
+        case 'package.default':
+            return 'default';
+    }
+    return $def;
+}

@@ -159,7 +159,9 @@ form.search input[type=text] {
         <a href="/report">Report</a>
     </nav>
 
-    <h1>tendril</h1>
+    <h1>
+        <a href="/">tendril</a>
+    </h1>
 
 </header>
 
