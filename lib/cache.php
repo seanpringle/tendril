@@ -18,7 +18,10 @@ class cache
     {
         if (function_exists('mc') && mc())
         {
-            @mc()->set($key, $value, 0, $expire);
+            if (class_exists('Memcache') && mc() instanceof Memcache)
+                @mc()->set($key, $value, 0, $expire);
+            if (class_exists('Memcached') && mc() instanceof Memcached)
+                @mc()->set($key, $value, $expire);
             return;
         }
         self::$cache[$key] = $value;
