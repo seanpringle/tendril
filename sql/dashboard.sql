@@ -51,13 +51,13 @@ create event insert_global_status_log_1d
         server_id,
         max(stamp) as stamp,
         name_id
-      from tendril.global_status_log
+      from global_status_log
       where stamp > now() - interval 5 minute
       group by server_id, name_id
       order by null;
 
     insert ignore into global_status_log_1d
-      select t1.*, l.value from t1 join tendril.global_status_log l
+      select t1.*, l.value from t1 join global_status_log l
         on t1.server_id = l.server_id and t1.name_id = l.name_id and t1.stamp = l.stamp;
 
     drop table t1;
@@ -91,13 +91,13 @@ create event insert_global_status_log_1d
         server_id,
         max(stamp) as stamp,
         name_id
-      from tendril.global_status_log
+      from global_status_log
       where stamp > now() - interval 30 minute
       group by server_id, name_id
       order by null;
 
     insert ignore into global_status_log_7d
-      select t1.*, l.value from t1 join tendril.global_status_log l
+      select t1.*, l.value from t1 join global_status_log l
         on t1.server_id = l.server_id and t1.name_id = l.name_id and t1.stamp = l.stamp;
 
     drop table t1;
@@ -131,13 +131,13 @@ create event insert_global_status_log_1d
         server_id,
         max(stamp) as stamp,
         name_id
-      from tendril.global_status_log
+      from global_status_log
       where stamp > now() - interval 5 minute
       group by server_id, name_id
       order by null;
 
     insert ignore into global_status_log_5m
-      select t1.*, l.value from t1 join tendril.global_status_log l
+      select t1.*, l.value from t1 join global_status_log l
         on t1.server_id = l.server_id and t1.name_id = l.name_id and t1.stamp = l.stamp;
 
     drop table t1;

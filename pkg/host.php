@@ -325,7 +325,7 @@ class Host_Chart_7day extends Host_Chart_24hour
             $cols['y'.($i+1)] = array($name, 'number');
 
             $table = preg_match('/Seconds_Behind_Master/', $name)
-                ? 'tendril.slave_status_log': 'dbmon.global_status_log_5m';
+                ? 'tendril.slave_status_log': 'tendril.global_status_log_5m';
                 //? 'tendril.slave_status_log': 'tendril.global_status_log';
 
             $fields[] = sprintf('(%s) as y%d',

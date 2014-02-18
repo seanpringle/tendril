@@ -104,7 +104,7 @@ class Package_Report extends Package
 
     private function schemata_ignore()
     {
-        return sql::query('dbmon.schemata_ignore')->fetch_field('schema_name');
+        return sql::query('tendril.schemata_ignore')->fetch_field('schema_name');
     }
 
     public function regex_host($text)
@@ -629,8 +629,8 @@ class Package_Report extends Package
         $reads_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
             ->where_eq('string', 'innodb_buffer_pool_reads')->fetch_value('id');
 
-        $bphr = sql::query('dbmon.global_status_log_5m gs1')
-            ->join('dbmon.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
+        $bphr = sql::query('tendril.global_status_log_5m gs1')
+            ->join('tendril.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
             ->where('gs1.server_id = srv.id')
             ->where('gs2.server_id = srv.id')
             ->where_eq('gs1.name_id', $reqs_id)
@@ -648,8 +648,8 @@ class Package_Report extends Package
         $w_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
             ->where_eq('string', 'innodb_data_written')->fetch_value('id');
 
-        $io = sql::query('dbmon.global_status_log_5m gs1')
-            ->join('dbmon.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
+        $io = sql::query('tendril.global_status_log_5m gs1')
+            ->join('tendril.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
             ->where('gs1.server_id = srv.id')
             ->where('gs2.server_id = srv.id')
             ->where_eq('gs1.name_id', $r_id)
@@ -661,7 +661,7 @@ class Package_Report extends Package
         $dl_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
             ->where_eq('string', 'innodb_deadlocks')->fetch_value('id');
 
-        $deadlocks = sql::query('dbmon.global_status_log_5m')
+        $deadlocks = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $dl_id)
             ->where('stamp > now() - interval 1 hour')
@@ -672,13 +672,13 @@ class Package_Report extends Package
         $x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
             ->where_eq('string', 'innodb_x_lock_os_waits')->fetch_value('id');
 
-        $os_s_waits = sql::query('dbmon.global_status_log_5m')
+        $os_s_waits = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $s_id)
             ->where('stamp > now() - interval 1 hour')
             ->fields('(max(value)-min(value)) / 3600');
 
-        $os_x_waits = sql::query('dbmon.global_status_log_5m')
+        $os_x_waits = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $x_id)
             ->where('stamp > now() - interval 1 hour')
@@ -689,13 +689,13 @@ class Package_Report extends Package
         $x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
             ->where_eq('string', 'innodb_x_lock_spin_waits')->fetch_value('id');
 
-        $spin_s_waits = sql::query('dbmon.global_status_log_5m')
+        $spin_s_waits = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $s_id)
             ->where('stamp > now() - interval 1 hour')
             ->fields('(max(value)-min(value)) / 3600');
 
-        $spin_x_waits = sql::query('dbmon.global_status_log_5m')
+        $spin_x_waits = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $x_id)
             ->where('stamp > now() - interval 1 hour')
@@ -706,13 +706,13 @@ class Package_Report extends Package
         $x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
             ->where_eq('string', 'innodb_x_lock_spin_rounds')->fetch_value('id');
 
-        $spin_s_rounds = sql::query('dbmon.global_status_log_5m')
+        $spin_s_rounds = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $s_id)
             ->where('stamp > now() - interval 1 hour')
             ->fields('(max(value)-min(value)) / 3600');
 
-        $spin_x_rounds = sql::query('dbmon.global_status_log_5m')
+        $spin_x_rounds = sql::query('tendril.global_status_log_5m')
             ->where('server_id = srv.id')
             ->where_eq('name_id', $x_id)
             ->where('stamp > now() - interval 1 hour')
