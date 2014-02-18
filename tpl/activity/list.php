@@ -1,3 +1,7 @@
+<p class="note">
+    Queries running longer than 10s gathered via SHOW FULL PROCESSLIST snapshots.
+</p>
+
 <style type="text/css">
 
 #activity-processlist .query td {

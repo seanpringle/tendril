@@ -129,6 +129,10 @@ header h1 {
     margin: 0;
 }
 
+header h1 a {
+    text-decoration: none;
+}
+
 header nav {
     display: block;
     float: right;
