@@ -3,8 +3,13 @@
 error_reporting(E_ALL);
 date_default_timezone_set('UTC');
 
-error_log('************************************');
-error_log($_SERVER['REQUEST_URI']);
+function e($msg)
+{
+    e($msg);
+}
+
+e('************************************');
+e($_SERVER['REQUEST_URI']);
 
 set_error_handler(
 
@@ -22,7 +27,7 @@ function db()
     static $db = null;
     if (is_null($db) || !is_resource($db))
     {
-        error_log("db connect: host");
+        e("db connect: host");
         $db = @mysql_connect('host', 'user', 'pass')
             or die('database'); mysql_select_db('user');
     }
@@ -34,7 +39,7 @@ function mc()
     static $mc = null;
     if (is_null($mc) && class_exists('Memcache'))
     {
-        error_log("mc connect: host");
+        e("mc connect: host");
         $mc = new Memcache();
         if (!$mc->addServer('host'))
             $mc = null;

@@ -85,7 +85,6 @@ class Package
             case 'ajax':
                 header('Content-Type: application/json');
                 $ajax = $this->ajax();
-                //error_log(json_encode($ajax));
                 die(json_encode($ajax));
         }
         require ROOT .'tpl/page.php';

@@ -5,22 +5,22 @@ function todo()
     $msg = 'TODO';
     foreach (func_get_args() as $arg)
         $msg .= ' '.$arg;
-    error_log($msg);
+    e($msg);
 }
 
 function backtrace()
 {
     ob_start();
     debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-    error_log(ob_get_clean());
+    e(ob_get_clean());
 }
 
 set_error_handler(
 
     function($errno, $message, $file, $line, $context)
     {
-        $type = $errno == E_WARNING ? 'warning': 'error_log';
-        error_log("$type at: $file:$line, $message, $context\n");
+        $type = $errno == E_WARNING ? 'warning': 'e';
+        e("$type at: $file:$line, $message, $context\n");
         backtrace();
         return false;
     }
@@ -340,7 +340,7 @@ function redirect($url)
 {
     if (function_exists('debug'))
     {
-        error_log("redirect: $url\n");
+        e("redirect: $url\n");
         printf('<a href="%s">redirect: %s</a>', $url, escape($url));
         printf('<pre>%s</pre>', print_r($_REQUEST, true));
     }

@@ -519,7 +519,7 @@ class sql
         $this->error_msg = null;
 
         $host = preg_replace('/^([^\s]+).*$/', '\1', mysql_get_host_info($this->db));
-        error_log('sql '.$host.': '.rtrim($sql)."\n");
+        e('sql '.$host.': '.rtrim($sql)."\n");
 
         $this->rs = mysql_query($sql, $this->db);
         $this->rs_sql = $sql;
@@ -528,7 +528,7 @@ class sql
         {
             $this->error = mysql_errno();
             $this->error_msg = mysql_error();
-            error_log('sql error: '.$this->error.' '.$this->error_msg."\n");
+            e('sql error: '.$this->error.' '.$this->error_msg."\n");
         }
 
         $this->rs_fields = array();
@@ -576,13 +576,13 @@ class sql
         {
             if ($this->cache && isset(self::$_result_cache[$md5]))
             {
-                error_log("sql $host (result cache): ".rtrim($sql)."\n");
+                e("sql $host (result cache): ".rtrim($sql)."\n");
                 return unserialize(gzuncompress(self::$_result_cache[$md5]));
             }
 
             if (($data_obj = cache::get($md5, 'array')) && is_array($data_obj))
             {
-                error_log("sql $host (memcached): ".rtrim($sql)."\n");
+                e("sql $host (memcached): ".rtrim($sql)."\n");
                 return $data_obj;
             }
 
