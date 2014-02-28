@@ -59,7 +59,7 @@ class Package_Report extends Package
                 break;
 
             case 'slow_queries_checksum':
-                list ($rows, $dns) = $this->data_slow_queries_checksum();
+                list ($rows, $dns, $g_cols, $g_rows) = $this->data_slow_queries_checksum();
                 include ROOT .'tpl/report/slow_queries_checksum.php';
                 break;
 
@@ -841,7 +841,7 @@ class Package_Report extends Package
                 ->where('pql.stamp > now() - interval '.$hours.' hour')
                 ->where_gt('pql.time', 1)
                 ->order('time', 'desc')
-                ->limit(25);
+                ->limit(50);
 
             if ($host)
             {
@@ -861,12 +861,54 @@ class Package_Report extends Package
             $rows = $search->fetch_all();
         }
 
+        $g_cols = array(
+            'x' => array('Time', 'datetime'),
+            'y' => array('Active Queries', 'number'),
+        );
+
+        $period = ($hours*5).' minute';
+
+        $search = sql::query('processlist_query_log pql')
+            ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+            ->fields('count(distinct concat(pql.server_id,":",pql.id))')
+            ->where_eq('pql.checksum', $checksum)
+            ->where_gt('pql.time', 1)
+            ->where('pql.stamp between x - interval '.$period.' and x')
+            ->where('pql.stamp > now() - interval '.$hours.' hour');
+
+        if ($host)
+        {
+            $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+        }
+
+        if ($schema)
+        {
+            $search->where_regexp('pql.db', $schema);
+        }
+
+        if ($user)
+        {
+            $search->where_regexp('pql.user', $user);
+        }
+
+        $fields = array(
+            'now() - interval s.value * '.$period.' as x',
+            sprintf('(%s) as y', $search->get_select()),
+        );
+
+        $g_rows = sql::query('sequence s')
+            ->where_between('value', 1, round($hours*(12/$hours)))
+            ->having('x is not null')
+            ->fields($fields)
+            ->order('value')
+            ->fetch_all();
+
         $dns = sql::query('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');
 
-        return array( $rows, $dns );
+        return array( $rows, $dns, $g_cols, $g_rows );
     }
 
     private function data_schemas()

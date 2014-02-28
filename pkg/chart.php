@@ -114,7 +114,7 @@ class Package_Chart extends Package_Report
             }
 
             $rows = sql::query('sequence s')
-                ->cache(sql::MEMCACHE, 300)
+                ->cache(sql::MEMCACHE, $mins*60)
                 ->where_between('value', 1, $hours * round(60/$mins))
                 ->having('x is not null')
                 ->fields($fields)

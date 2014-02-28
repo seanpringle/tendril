@@ -7,6 +7,10 @@
 	font-size: smaller;
 	color: #999;
 }
+#chart {
+	border: 1px solid #999;
+	margin-bottom: 1em;
+}
 </style>
 
 <form method="GET" class="search">
@@ -22,6 +26,51 @@
 	<input style="width: 2em" type="text" name="hours" value="<?= escape(pkg()->request('hours')) ?>" placeholder="#" />
 	<input type="submit" value="Search" />
 </form>
+
+<script type="text/javascript">
+
+google.setOnLoadCallback(drawChart);
+
+function drawChart()
+{
+    var data = new google.visualization.DataTable();
+
+    var cols = <?php print json_encode($g_cols); ?>;
+    var rows = <?php print json_encode($g_rows); ?>;
+
+    for (var j in cols)
+    {
+        data.addColumn(cols[j][1], cols[j][0]);
+    }
+
+    for (var i = 0; i < rows.length; i++)
+    {
+        var point = [];
+        for (var j in cols)
+        {
+            if (cols[j][1] == 'date' || cols[j][1] == 'datetime')
+                point.push(new Date(rows[i][j].replace(/-/g, '/')));
+            else
+                point.push(rows[i][j]);
+        }
+
+        data.addRow(point);
+    }
+
+    var options = {
+        'width'  : '100%',
+        'height' : 300,
+        'legend' : { 'position': 'top' },
+        'chartArea' : { 'width': '91%', 'left': '5%' }
+    };
+
+    var chart = new google.visualization.ColumnChart($('#chart').get(0));
+    chart.draw(data, options);
+}
+
+</script>
+
+<div id="chart"></div>
 
 <table id="slow-queries-checksum">
 
@@ -40,6 +89,12 @@
 	</th>
 	<th class="">
 		Source
+	</th>
+	<th class="">
+		Thread
+	</th>
+	<th class="">
+		Transaction
 	</th>
 	<th class="right">
 		Runtime
@@ -89,6 +144,12 @@ foreach ($rows as $row)
 			'html' => escape($fqdn),
 		)),
 		tag('td', array(
+			'html' => escape($row['id']),
+		)),
+		tag('td', array(
+			'html' => escape($row['trx_id']),
+		)),
+		tag('td', array(
 			'title' => 'Time',
 			'class' => 'right',
 			'html' => number_format($row['time'], 0).'s',
@@ -106,7 +167,7 @@ foreach ($rows as $row)
 
 	$cells = array(
 		tag('td', array(
-			'colspan' => 7,
+			'colspan' => 9,
 			'html' => escape($sample),
 		))
 	);
