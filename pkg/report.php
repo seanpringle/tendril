@@ -897,7 +897,7 @@ class Package_Report extends Package
         );
 
         $g_rows = sql::query('sequence s')
-            ->where_between('value', 1, round($hours*(12/$hours)))
+            ->where_between('value', 0, round($hours*(12/$hours)))
             ->having('x is not null')
             ->fields($fields)
             ->order('value')

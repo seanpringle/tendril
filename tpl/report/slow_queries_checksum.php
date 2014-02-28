@@ -157,7 +157,7 @@ foreach ($rows as $row)
 		tag('td', array(
 			'class' => 'right',
 			'title' => datetime_casual($row['stamp']),
-			'html' => date('Y-m-d h:i:s', strtotime($row['stamp'])),
+			'html' => date('Y-m-d H:i:s', strtotime($row['stamp'])),
 		)),
 	);
 
