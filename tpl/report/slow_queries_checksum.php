@@ -59,7 +59,7 @@ function drawChart()
 
     var options = {
         'width'  : '100%',
-        'height' : 300,
+        'height' : 200,
         'legend' : { 'position': 'top' },
         'chartArea' : { 'width': '91%', 'left': '5%' }
     };

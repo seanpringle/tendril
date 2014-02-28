@@ -12,6 +12,10 @@
 	font-size: smaller;
 	color: #999;
 }
+#chart {
+	border: 1px solid #999;
+	margin-bottom: 1em;
+}
 </style>
 
 <form method="GET" class="search">
@@ -31,6 +35,51 @@
 	<input style="width: 2em" type="text" name="hours" value="<?= escape(pkg()->request('hours')) ?>" placeholder="#" />
 	<input type="submit" value="Search" />
 </form>
+
+<script type="text/javascript">
+
+google.setOnLoadCallback(drawChart);
+
+function drawChart()
+{
+    var data = new google.visualization.DataTable();
+
+    var cols = <?php print json_encode($g_cols); ?>;
+    var rows = <?php print json_encode($g_rows); ?>;
+
+    for (var j in cols)
+    {
+        data.addColumn(cols[j][1], cols[j][0]);
+    }
+
+    for (var i = 0; i < rows.length; i++)
+    {
+        var point = [];
+        for (var j in cols)
+        {
+            if (cols[j][1] == 'date' || cols[j][1] == 'datetime')
+                point.push(new Date(rows[i][j].replace(/-/g, '/')));
+            else
+                point.push(rows[i][j]);
+        }
+
+        data.addRow(point);
+    }
+
+    var options = {
+        'width'  : '100%',
+        'height' : 200,
+        'legend' : { 'position': 'top' },
+        'chartArea' : { 'width': '91%', 'left': '5%' }
+    };
+
+    var chart = new google.visualization.ColumnChart($('#chart').get(0));
+    chart.draw(data, options);
+}
+
+</script>
+
+<div id="chart"></div>
 
 <table id="slow-queries">
 
@@ -93,10 +142,10 @@ foreach ($rows as $row)
 			'class' => 'right',
 			'html' => tag('a', array(
 				'href' => sprintf('/report/slow_queries_checksum?checksum=%s&host=%s&user=%s&schema=%s&hours=%s',
-					$row['checksum'], 
-					urlencode(pkg()->request('host')), 
-					urlencode(pkg()->request('user')), 
-					urlencode(pkg()->request('schema')), 
+					$row['checksum'],
+					urlencode(pkg()->request('host')),
+					urlencode(pkg()->request('user')),
+					urlencode(pkg()->request('schema')),
 					urlencode(pkg()->request('hours'))
 				),
 				'html' => $row['hits'],
