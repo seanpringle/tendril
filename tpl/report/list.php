@@ -16,6 +16,9 @@
             <a href="/report/slow_queries_checksum">by checksum</a>
         </li>
     </ul>
+    <li>
+        <a href="/report/trxlist?host=^db&schema=wik&user=wik">Transactions</a>
+    </li>
 </ul>
 
 <ul>

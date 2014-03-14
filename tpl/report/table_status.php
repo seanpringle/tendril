@@ -5,6 +5,8 @@
 	<input type="text" name="schema" value="<?= escape(pkg()->request('schema')) ?>" placeholder="regex" />
 	<strong>table</strong>
 	<input type="text" name="table" value="<?= escape(pkg()->request('table')) ?>" placeholder="regex" />
+	<strong>engine</strong>
+	<input type="text" name="engine" value="<?= escape(pkg()->request('engine')) ?>" placeholder="regex" />
 	<strong>data</strong>
 	<input type="text" style="width: 2em;" name="data" value="<?= escape(pkg()->request('data')) ?>" placeholder="GB" />
 	<strong>index</strong>
@@ -65,6 +67,9 @@
 	<th class="indexes" title="Indexes">
 		Idx.
 	</th>
+	<th class="engine">
+		Engine
+	</th>
 	<th class="ai">
 		auto-inc
 	</th>
@@ -112,6 +117,10 @@ foreach ($rows as $row)
 				&& $row['index_length_gb'] > 1 ? 'large': 'small'),
 			'title' => escape($row['index_length']),
 			'html' => number_format($row['index_length_gb'], 1) . suffix('G'),
+		)),
+		tag('td', array(
+			'class' => 'engine',
+			'html' => escape($row['engine']),
 		)),
 		tag('td', array(
 			'class' => 'ai',

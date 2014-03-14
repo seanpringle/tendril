@@ -79,8 +79,13 @@ class Package_Report extends Package
                 break;
 
             case 'processlist':
-                list ($rows, $dns) = $this->processlist();
+                list ($rows, $dns) = $this->data_processlist();
                 include ROOT .'tpl/report/processlist.php';
+                break;
+
+            case 'trxlist':
+                list ($rows, $dns) = $this->data_trxlist();
+                include ROOT .'tpl/report/trxlist.php';
                 break;
 
             default:
@@ -259,6 +264,7 @@ class Package_Report extends Package
         $host   = $this->request('host');
         $schema = $this->request('schema');
         $table  = $this->request('table');
+        $engine = $this->request('engine');
         $data   = $this->request('data',  'float', 0);
         $index  = $this->request('index', 'float', 0);
 
@@ -300,6 +306,11 @@ class Package_Report extends Package
             if ($table)
             {
                 $search->where_regexp('tab.table_name', $table);
+            }
+
+            if ($engine)
+            {
+                $search->where_regexp('tab.engine', $engine);
             }
 
             if ($data)
@@ -1050,7 +1061,7 @@ class Package_Report extends Package
         return array( 'explain ' .join(" union\n", $unions ));
     }
 
-    private function processlist()
+    private function data_processlist()
     {
         $host    = $this->request('host');
         $schema  = $this->request('schema');
@@ -1111,4 +1122,85 @@ class Package_Report extends Package
         return array( $rows, $dns );
     }
 
+    private function data_trxlist()
+    {
+        $host    = $this->request('host');
+        $schema  = $this->request('schema');
+        $user    = $this->request('user');
+
+        $rows = array();
+
+        if ($host || $schema || $user || $time || $command)
+        {
+            $search = sql::query('tendril.innodb_trx t')
+                ->fields(array(
+                    't.*', 'p.*',
+                    'unix_timestamp() - unix_timestamp(trx_started) as trx_time',
+                ))
+                ->join('tendril.servers srv', 't.server_id = srv.id')
+                ->left_join('tendril.processlist p', 't.server_id = p.server_id and t.trx_mysql_thread_id = p.id')
+                ->order('t.trx_started', 'asc')
+                ->limit(100);
+
+            if ($host)
+            {
+                $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+            }
+
+            if ($schema)
+            {
+                $search->where_regexp('p.db', $schema);
+            }
+
+            if ($user)
+            {
+                $search->where_regexp('p.user', $user);
+            }
+
+            $rows = $search->fetch_all();
+        }
+
+        foreach ($rows as &$row)
+        {
+            $row['queries'] = array();
+        }
+
+        if ($rows)
+        {
+            $server_ids = array();
+            $thread_ids = array();
+
+            foreach ($rows as $row)
+            {
+                $server_ids[] = $row['server_id'];
+                $thread_ids[] = $row['trx_mysql_thread_id'];
+            }
+
+            $queries = sql::query('processlist_query_log pql')
+                ->where_in('server_id', array_unique($server_ids))
+                ->where_in('id', array_unique($thread_ids))
+                ->where('stamp > now() - interval 10 minute')
+                ->fetch_all();
+
+            foreach ($queries as $qrow)
+            {
+                foreach ($rows as $i => $row)
+                {
+                    if ($row['server_id'] == $qrow['server_id']
+                        && $row['trx_mysql_thread_id'] == $qrow['id']
+                        && $row['info'] != $qrow['info'])
+                    {
+                        $rows[$i]['queries'][] = $qrow;
+                    }
+                }
+            }
+        }
+
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+        return array( $rows, $dns );
+    }
 }
