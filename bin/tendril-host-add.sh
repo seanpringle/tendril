@@ -309,6 +309,20 @@ CREATE TABLE ${server}_innodb_trx (
   trx_adaptive_hash_timeout bigint(21) unsigned NOT NULL DEFAULT '0'
 ) ENGINE=FEDERATED CONNECTION='${federated}/INNODB_TRX' DEFAULT CHARSET=utf8;
 
+drop table if exists ${server}_innodb_locks;
+CREATE TABLE ${server}_innodb_locks (
+  lock_id varchar(81) NOT NULL DEFAULT '',
+  lock_trx_id varchar(18) NOT NULL DEFAULT '',
+  lock_mode varchar(32) NOT NULL DEFAULT '',
+  lock_type varchar(32) NOT NULL DEFAULT '',
+  lock_table varchar(1024) NOT NULL DEFAULT '',
+  lock_index varchar(1024) DEFAULT NULL,
+  lock_space bigint(21) unsigned DEFAULT NULL,
+  lock_page bigint(21) unsigned DEFAULT NULL,
+  lock_rec bigint(21) unsigned DEFAULT NULL,
+  lock_data varchar(8192) DEFAULT NULL
+) ENGINE=FEDERATED CONNECTION='${federated}/INNODB_LOCKS' DEFAULT CHARSET=utf8;
+
 delimiter ;;
 
 create event ${server}_schema
@@ -481,7 +495,12 @@ create event ${server}_status
       delete from global_status where server_id = @server_id;
       insert into global_status select @server_id, lower(VARIABLE_NAME), variable_value from t1;
 
-      insert ignore into strings (string) select lower(VARIABLE_NAME) from t1;
+      -- insert ignore into strings (string) select lower(VARIABLE_NAME) from t1;
+      -- INSERT IGNORE for InnoDB without auto-inc holes
+      insert into strings (string)
+        select lower(VARIABLE_NAME) from t1
+          left join strings b on lower(t1.VARIABLE_NAME) = b.string
+          where b.string is null;
 
       insert into global_status_log (server_id, name_id, value)
         select @server_id, n.id, gs.variable_value from global_status gs
@@ -531,11 +550,16 @@ create event ${server}_activity
 
     if (@enabled = 1) then
 
-      delete from processlist where server_id = @server_id;
-      insert into processlist select @server_id, t.* from ${server}_process t;
+      delete from processlist  where server_id = @server_id;
+      delete from innodb_trx   where server_id = @server_id;
+      delete from innodb_locks where server_id = @server_id;
 
-      delete from innodb_trx where server_id = @server_id;
-      insert into innodb_trx select @server_id, t.* from ${server}_innodb_trx t;
+      insert into processlist  select @server_id, t.* from ${server}_process t;
+      insert into innodb_trx   select @server_id, t.* from ${server}_innodb_trx t;
+      insert into innodb_locks select @server_id, t.* from ${server}_innodb_locks t;
+
+      insert into innodb_trx_log   select * from innodb_trx where server_id = @server_id;
+      insert into innodb_locks_log select now(), l.* from innodb_locks l;
 
       -- mariadb 5.5 bug
       update processlist set time = 0 where time = 2147483647;
@@ -571,6 +595,23 @@ create event ${server}_activity
         set q.time = p.time
         where
           q.server_id = @server_id
+          and p.command = 'Query';
+
+      update processlist_query_log q
+        join processlist p
+          on p.server_id = q.server_id
+          and p.id = q.id
+          and p.user = q.user
+          and p.host = q.host
+          and p.db = q.db
+          and p.info = q.info
+        join innodb_trx t
+          on p.server_id = t.server_id
+          and p.id = t.trx_mysql_thread_id
+          and substr(p.info,1,1000) = substr(t.trx_query,1,1000)
+          and length(t.trx_id) > 0
+        set q.trx_id = t.trx_id
+        where q.server_id = @server_id
           and p.command = 'Query';
 
       update servers set event_activity = now() where id = @server_id;

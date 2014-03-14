@@ -30,6 +30,11 @@ create event tendril_purge_slave_status_log
     on schedule every 1 minute starts date(now()) + interval 25 second
     do delete from slave_status_log where stamp < now() - interval 1 week limit 50000;
 
+drop event if exists tendril_purge_innodb_trx_log;
+create event tendril_purge_innodb_trx_log
+    on schedule every 1 minute starts date(now()) + interval 45 second
+    do delete from innodb_trx_log where trx_started < now() - interval 1 week limit 50000;
+
 delimiter ;;
 
 drop event if exists tendril_purge_processlist_query_log;
@@ -51,9 +56,11 @@ create event tendril_slave_status_logger
         signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    insert ignore into strings (string)
+    -- INSERT IGNORE for InnoDB without auto-inc holes
+    insert into strings (string)
         select distinct lower(variable_name) from slave_status
-            where variable_value regexp('(^[0-9]+$)');
+            left join strings b on lower(variable_name) = b.string
+            where variable_value regexp('(^[0-9]+$)') and b.string is null;
 
     insert into slave_status_log
         select server_id, now(), strings.id, variable_value from slave_status
