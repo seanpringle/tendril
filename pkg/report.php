@@ -830,46 +830,47 @@ class Package_Report extends Package
             'y' => array('Active Slow Queries, '.$period.' sample', 'number'),
         );
 
-        $search = sql::query('processlist_query_log pql')
-            ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
-            ->fields('count(distinct concat(pql.server_id,":",pql.id))')
-            ->where('pql.stamp between x - interval '.$period.' and x')
-            ->where_not_null('pql.checksum')
-            ->where('pql.stamp > now() - interval '.($hours+1).' hour')
-            ->where_gt('pql.time', 1)
-            ->where_not_like('lower(trim(pql.info))', 'show%')
-            ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%');
+        $bars = array();
 
-        if ($host)
+        for ($i = 0; $i < round($hours*(20/$hours)); $i++)
         {
-            $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+            $search = sql::query('processlist_query_log pql')
+                ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+                ->fields(array(
+                    'now() - interval '.(($i+1)*($hours*3)).' minute as x',
+                    'count(distinct concat(pql.server_id,":",pql.id,":",pql.checksum)) as y',
+                ))
+                ->where_not_null('pql.checksum')
+                ->where_gt('pql.time', 1)
+                ->where('pql.stamp > now() - interval '.(($i+1)*($hours*3)).' minute')
+                ->where('pql.stamp < now() - interval '.(($i)*($hours*3)).' minute')
+                ->where_not_like('lower(trim(pql.info))', 'show%')
+                ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%');
+
+            if ($host)
+            {
+                $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+            }
+
+            if ($schema)
+            {
+                $search->where_regexp('pql.db', $schema);
+            }
+
+            if ($user)
+            {
+                $search->where_regexp('pql.user', $user);
+            }
+
+            if ($query)
+            {
+                $search->where_regexp('pql.info', $query, $qmode != 'ne');
+            }
+
+            $bars[] = $search->get_select();
         }
 
-        if ($schema)
-        {
-            $search->where_regexp('pql.db', $schema);
-        }
-
-        if ($user)
-        {
-            $search->where_regexp('pql.user', $user);
-        }
-
-        if ($query)
-        {
-            $search->where_regexp('pql.info', $query, $qmode != 'ne');
-        }
-
-        $fields = array(
-            'now() - interval s.value * '.$period.' as x',
-            sprintf('(%s) as y', $search->get_select()),
-        );
-
-        $g_rows = sql::query('sequence s')
-            ->where_between('value', 0, round($hours*(20/$hours)))
-            ->having('x is not null')
-            ->fields($fields)
-            ->order('x')
+        $g_rows = sql::command(join(' union ', $bars))
             ->fetch_all();
 
         $dns = sql::query('tendril.dns')

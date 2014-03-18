@@ -42,7 +42,7 @@ create event tendril_purge_processlist_query_log
     on schedule every 1 minute starts date(now()) + interval 35 second
     do begin
 
-        delete from processlist_query_log where stamp < now() - interval 1 week limit 50000;
+        delete from processlist_query_log where stamp < now() - interval 3 day limit 50000;
         delete from processlist_query_log where stamp < now() - interval 1 day and time < 5 limit 50000;
 
     end ;;

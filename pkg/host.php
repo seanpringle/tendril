@@ -154,7 +154,7 @@ class Package_Host extends Package
             'InnoDB Adaptive Hash' => 'Innodb_adaptive_hash_hash_searches,Innodb_adaptive_hash_non_hash_searches',
             'InnoDB Buffer Pool' => 'Innodb_buffer_pool_pages_total,Innodb_buffer_pool_pages_data,Innodb_buffer_pool_pages_dirty,Innodb_buffer_pool_pages_free',
             'InnoDB Purge Lag' => 'Innodb_history_list_length',
-            'InnoDB Checkpoint Age' => 'Innodb_checkpoint_age',
+            'InnoDB Checkpoint Age' => 'Innodb_checkpoint_max_age,Innodb_checkpoint_age',
             'InnoDB Mutexes' => 'Innodb_mutex_os_waits,Innodb_mutex_spin_rounds,Innodb_mutex_spin_waits',
             'InnoDB Lock OS Waits' => 'Innodb_s_lock_os_waits,Innodb_x_lock_os_waits',
             'InnoDB Lock Spin Rounds' => 'Innodb_s_lock_spin_rounds,Innodb_x_lock_spin_rounds',
