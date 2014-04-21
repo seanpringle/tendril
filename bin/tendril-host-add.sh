@@ -502,8 +502,8 @@ create event ${server}_status
           left join strings b on lower(t1.VARIABLE_NAME) = b.string
           where b.string is null;
 
-      insert into global_status_log (server_id, name_id, value)
-        select @server_id, n.id, gs.variable_value from global_status gs
+      insert into global_status_log (server_id, stamp, name_id, value)
+        select @server_id, now(), n.id, gs.variable_value from global_status gs
           join strings n on gs.variable_name = n.string
             where gs.server_id = @server_id and gs.variable_value regexp '^[0-9\.]+';
 
@@ -565,8 +565,8 @@ create event ${server}_activity
       update processlist set time = 0 where time = 2147483647;
 
       insert into processlist_query_log
-        (server_id, id, user, host, db, time, info)
-        select p.server_id, p.id, p.user, p.host, p.db, p.time, p.info
+        (server_id, stamp, id, user, host, db, time, info)
+        select p.server_id, now(), p.id, p.user, p.host, p.db, p.time, p.info
         from processlist p
         left join processlist_query_log q
           on p.server_id = q.server_id

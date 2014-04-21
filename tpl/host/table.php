@@ -43,6 +43,15 @@
     color: red;
 }
 
+#host-list th.repsql,
+#host-list td.repsql {
+    text-align: right;
+}
+
+#host-list td.repsql.bad {
+    color: red;
+}
+
 #host-list span.suffix {
     color: #999;
 }
@@ -66,6 +75,7 @@
     <th class="contact" title="last contact">Act.</th>
     <th class="qps">QPS</th>
     <th class="master">Master</th>
+    <th class="repsql">Rep</th>
     <th class="replag">Lag</th>
     <th class="slaves">Slaves</th>
 </tr>
@@ -120,6 +130,7 @@ foreach ($hosts as $row)
     $uptime  = expect($uptimes,  $h->id, 'uint', 0);
     $version = expect($versions, $h->id, 'str', '-');
     $contact = strtotime($row['contact']);
+    $sql     = expect($repsql, $h->id, 'str', '-');
     $lag     = expect($replag, $h->id, 'uint');
     $mem     = expect($ram, $h->id, 'uint', 0);
 
@@ -175,6 +186,10 @@ foreach ($hosts as $row)
         tag('td', array(
             'class' => 'master',
             'html' => $master,
+        )),
+        tag('td', array(
+            'class' => sprintf('repsql %s', $sql == 'No' ? 'bad': ''),
+            'html' => $sql,
         )),
         tag('td', array(
             'class' => sprintf('replag %s', $lag > 30 ? 'bad': ''),

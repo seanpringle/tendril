@@ -46,13 +46,15 @@ create event tendril_global_status_log_1d
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
+    select @stamp := now() - interval 5 minute;
+
     create temporary table t1 as
       select
         server_id,
         max(stamp) as stamp,
         name_id
       from global_status_log
-      where stamp > now() - interval 5 minute
+      where stamp > @stamp
       group by server_id, name_id
       order by null;
 
@@ -73,7 +75,8 @@ create event tendril_global_status_log_1d
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    delete from global_status_log_1d where stamp < now() - interval 1 day;
+    select @stamp := now() - interval 1 day;
+    delete from global_status_log_1d where stamp < @stamp;
 
     do release_lock('tendril_purge_global_status_log_1d');
   end ;;
@@ -86,13 +89,15 @@ create event tendril_global_status_log_1d
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
+    select @stamp := now() - interval 30 minute;
+
     create temporary table t1 as
       select
         server_id,
         max(stamp) as stamp,
         name_id
       from global_status_log
-      where stamp > now() - interval 30 minute
+      where stamp > @stamp
       group by server_id, name_id
       order by null;
 
@@ -113,7 +118,8 @@ create event tendril_global_status_log_1d
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    delete from global_status_log_7d where stamp < now() - interval 7 day;
+    select @stamp := now() - interval 7 day;
+    delete from global_status_log_7d where stamp < @stamp;
 
     do release_lock('tendril_purge_global_status_log_7d');
   end ;;
@@ -126,13 +132,15 @@ create event tendril_global_status_log_1d
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
+    select @stamp := now() - interval 5 minute;
+
     create temporary table t1 as
       select
         server_id,
         max(stamp) as stamp,
         name_id
       from global_status_log
-      where stamp > now() - interval 5 minute
+      where stamp > @stamp
       group by server_id, name_id
       order by null;
 
@@ -153,7 +161,8 @@ create event tendril_global_status_log_1d
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    delete from global_status_log_5m where stamp < now() - interval 7 day;
+    select @stamp := now() - interval 7 day;
+    delete from global_status_log_5m where stamp < @stamp;
 
     do release_lock('tendril_purge_global_status_log_5m');
   end ;;

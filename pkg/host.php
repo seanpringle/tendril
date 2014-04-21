@@ -35,12 +35,12 @@ class Package_Host extends Package
         switch ($this->action())
         {
             case 'view':
-                list ($host, $graphs, $variables, $status, $grants, $slave_status, $hosts, $versions, $uptimes, $replag, $ram) = $this->data_view();
+                list ($host, $graphs, $variables, $status, $grants, $slave_status, $hosts, $versions, $uptimes, $repsql, $replag, $ram) = $this->data_view();
                 include ROOT .'tpl/host/view.php';
                 break;
 
             default:
-                list ($hosts, $versions, $uptimes, $replag, $ram) = $this->data_list();
+                list ($hosts, $versions, $uptimes, $repsql, $replag, $ram) = $this->data_list();
                 include ROOT .'tpl/host/list.php';
         }
     }
@@ -107,6 +107,12 @@ class Package_Host extends Package
             ->where_in_if('server_id', array_keys($hosts))
             ->fetch_pair('server_id', 'variable_value');
 
+        $repsql = sql::query('tendril.slave_status a')
+            ->fields('a.server_id, a.variable_value')
+            ->where_eq('a.variable_name', 'slave_sql_running')
+            ->where_in_if('a.server_id', array_keys($hosts))
+            ->fetch_pair('server_id', 'variable_value');
+
         $replag = sql::query('tendril.slave_status a')
             ->join('tendril.slave_status b', 'a.server_id = b.server_id')
             ->fields('a.server_id, a.variable_value')
@@ -124,7 +130,7 @@ class Package_Host extends Package
             ->where_in_if('server_id', array_keys($hosts))
             ->fetch_pair('server_id', 'variable_value');
 
-        return array( $hosts, $versions, $uptimes, $replag, $ram );
+        return array( $hosts, $versions, $uptimes, $repsql, $replag, $ram );
     }
 
     private function data_view()
