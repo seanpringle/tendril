@@ -801,9 +801,13 @@ class Package_Report extends Package
             ->order('max_time', 'desc')
             ->limit(50);
 
+        $host_ids = array();
         if ($host)
         {
-            $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
+                ->fetch_field('id');
+            $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
         }
 
         if ($schema)
@@ -835,7 +839,7 @@ class Package_Report extends Package
         for ($i = 0; $i < round($hours*(20/$hours)); $i++)
         {
             $search = sql::query('processlist_query_log pql')
-                ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+                //->left_join('tendril.servers srv', 'pql.server_id = srv.id')
                 ->fields(array(
                     'now() - interval '.(($i+1)*($hours*3)).' minute as x',
                     'count(distinct concat(pql.server_id,":",pql.id,":",pql.checksum)) as y',
@@ -849,7 +853,7 @@ class Package_Report extends Package
 
             if ($host)
             {
-                $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+                $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
             }
 
             if ($schema)
