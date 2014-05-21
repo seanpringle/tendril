@@ -29,30 +29,6 @@ while (my $row = $servers->fetchrow_hashref())
 
 		if ($wdb)
 		{
-			my $status = $wdb->prepare("show master status");
-			if ($status->execute() and my $row = $status->fetchrow_hashref())
-			{
-				foreach my $key (keys %$row)
-				{
-					my $replace = $db->prepare("replace into master_status (server_id, variable_name, variable_value) values (?,lower(?),?)");
-					$replace->execute($server_id, $key, $row->{$key});
-					$replace->finish();
-				}
-			}
-			$status->finish();
-
-			my $status = $wdb->prepare("show slave status");
-			if ($status->execute() and my $row = $status->fetchrow_hashref())
-			{
-				foreach my $key (keys %$row)
-				{
-					my $replace = $db->prepare("replace into slave_status (server_id, variable_name, variable_value) values (?,lower(?),?)");
-					$replace->execute($server_id, $key, $row->{$key});
-					$replace->finish();
-				}
-			}
-			$status->finish();
-
 			$wdb->disconnect();
 		}
 	}

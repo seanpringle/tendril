@@ -25,7 +25,7 @@ while (my $row = $servers->fetchrow_hashref())
 	{
 		print "$host:$port\n";
 
-		my $select = $db->prepare("select *, md5(info) as info_md5 from processlist_query_log where server_id = ? and info is not null and checksum is null");
+		my $select = $db->prepare("select id, host, info, md5(info) as info_md5 from processlist_query_log where server_id = ? and info is not null and checksum is null group by id, host, info");
 		if ($select->execute($server_id))
 		{
 			while (my $row = $select->fetchrow_hashref())
@@ -66,7 +66,7 @@ while (my $row = $servers->fetchrow_hashref())
 		if (my $ipv4packed = gethostbyname($host))
 		{
 			my $ipv4 = inet_ntoa($ipv4packed);
-			
+
 			my $update = $db->prepare("update servers set ipv4 = ? where id = ?");
 			$update->execute($ipv4, $server_id);
 			$update->finish();
@@ -75,6 +75,8 @@ while (my $row = $servers->fetchrow_hashref())
 			$replace->execute($host, $ipv4);
 			$replace->finish();
 		}
+
+		$db->do("select release_lock('tendril-cron-5m-$server_id')");
 	}
 }
 $servers->finish();
