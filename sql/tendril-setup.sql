@@ -5,7 +5,7 @@ drop event if exists tendril_purge_global_status_log;
 create event tendril_purge_global_status_log
     on schedule every 1 minute starts date(now()) + interval 10 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from global_status_log where stamp < @stamp limit 50000;
     end ;;
 
@@ -13,7 +13,7 @@ drop event if exists tendril_purge_client_statistics_log;
 create event tendril_purge_client_statistics_log
     on schedule every 1 minute starts date(now()) + interval 20 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from client_statistics_log where stamp < @stamp limit 10000;
     end ;;
 
@@ -21,7 +21,7 @@ drop event if exists tendril_purge_index_statistics_log;
 create event tendril_purge_index_statistics_log
     on schedule every 1 minute starts date(now()) + interval 30 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from index_statistics_log where stamp < @stamp limit 10000;
     end ;;
 
@@ -29,7 +29,7 @@ drop event if exists tendril_purge_table_statistics_log;
 create event tendril_purge_table_statistics_log
     on schedule every 1 minute starts date(now()) + interval 40 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from table_statistics_log where stamp < @stamp limit 10000;
     end ;;
 
@@ -37,7 +37,7 @@ drop event if exists tendril_purge_user_statistics_log;
 create event tendril_purge_user_statistics_log
     on schedule every 1 minute starts date(now()) + interval 50 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from user_statistics_log where stamp < @stamp limit 10000;
     end ;;
 
@@ -45,7 +45,7 @@ drop event if exists tendril_purge_slave_status_log;
 create event tendril_purge_slave_status_log
     on schedule every 1 minute starts date(now()) + interval 25 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from slave_status_log where stamp < @stamp limit 50000;
     end ;;
 
@@ -53,7 +53,7 @@ drop event if exists tendril_purge_innodb_trx_log;
 create event tendril_purge_innodb_trx_log
     on schedule every 1 minute starts date(now()) + interval 45 second
     do begin
-        select @stamp := now() - interval 1 week;
+        select @stamp := now() - interval 3 day;
         delete from innodb_trx_log where trx_started < @stamp limit 50000;
     end ;;
 

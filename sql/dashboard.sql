@@ -36,7 +36,8 @@ delimiter ;;
 
     insert ignore into global_status_log_5m
       select t1.*, l.value from t1 join global_status_log l
-        on t1.server_id = l.server_id and t1.name_id = l.name_id and t1.stamp = l.stamp;
+        on t1.server_id = l.server_id and t1.name_id = l.name_id and t1.stamp = l.stamp
+          where l.stamp > @stamp;
 
     drop table t1;
 
@@ -52,7 +53,7 @@ delimiter ;;
     end if;
 
     select @stamp := now() - interval 7 day;
-    delete from global_status_log_5m where stamp < @stamp;
+    delete from global_status_log_5m where stamp < @stamp limit 10000;
 
     do release_lock('tendril_purge_global_status_log_5m');
   end ;;

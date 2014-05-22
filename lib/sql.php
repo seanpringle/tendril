@@ -375,34 +375,55 @@ class sql
     // join a table
     public function join($table, $on=null)
     {
-        $alias = null; if (strpos($table, ' '))
+        $alias = null;
+
+        if (is_string($table) && strpos($table, ' ') && !preg_match('/^\s*select/i', $table))
+        {
             list ($table, $alias) = preg_split('/\s+/', trim($table));
+            $table = self::quote_name($table);
+        }
 
         $args = func_get_args(); array_shift($args);
         $clause = call_user_func_array('self::clause', $args);
-        $this->join[] = sprintf('join '.self::quote_name($table) .($alias ? ' '.$alias:'') . ' on ' . $clause);
+
+        $this->join[] = sprintf('join '. $table .($alias ? ' '.$alias:'') . ' on ' . $clause);
+
         return $this;
     }
     // left outer join a table
     public function left_join($table, $on=null)
     {
-        $alias = null; if (strpos($table, ' '))
+        $alias = null;
+
+        if (is_string($table) && strpos($table, ' ') && !preg_match('/^\s*\(/i', $table))
+        {
             list ($table, $alias) = preg_split('/\s+/', trim($table));
+            $table = self::quote_name($table);
+        }
 
         $args = func_get_args(); array_shift($args);
         $clause = call_user_func_array('self::clause', $args);
-        $this->join[] = sprintf('left join '.self::quote_name($table) .($alias ? ' '.$alias:'') . ' on ' . $clause);
+
+        $this->join[] = sprintf('left join '. $table .($alias ? ' '.$alias:'') . ' on ' . $clause);
+
         return $this;
     }
     // right outer join a table
     public function right_join($table, $on=null)
     {
-        $alias = null; if (strpos($table, ' '))
+        $alias = null;
+
+        if (is_string($table) && strpos($table, ' ') && !preg_match('/^\s*\(/i', $table))
+        {
             list ($table, $alias) = preg_split('/\s+/', trim($table));
+            $table = self::quote_name($table);
+        }
 
         $args = func_get_args(); array_shift($args);
         $clause = call_user_func_array('self::clause', $args);
-        $this->join[] = sprintf('right join '.self::quote_name($table) .($alias ? ' '.$alias:'') . ' on ' . $clause);
+
+        $this->join[] = sprintf('right join '. $table .($alias ? ' '.$alias:'') . ' on ' . $clause);
+
         return $this;
     }    // set key/val pair to be written in undate or single row insert
     public function set($pairs, $val=null)
