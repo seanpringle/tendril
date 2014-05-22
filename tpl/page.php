@@ -28,7 +28,7 @@ body {
 body > header {
     padding: 0.5em 1em;
     background: #eee;
-    border: 1px solid #999;
+    border: 1px solid #ccc;
     border-top: 0;
 }
 
@@ -48,8 +48,12 @@ body > section > form {
     margin: 0 0 0.75em 0;
 }
 
+body > section > p {
+    margin: 0 0 0.75em 0;
+}
+
 body > section > table {
-    border: 1px solid #999;
+    border: 1px solid #ccc;
     border-right: 0;
     border-left: 0;
     margin: 0 0 0.75em 0;
@@ -59,7 +63,7 @@ body > section > table th {
     font-weight: normal;
     text-align: left;
     background: #eee;
-    border-bottom: 1px solid #999;
+    border-bottom: 1px solid #ccc;
 }
 
 body > section > table td {
@@ -67,19 +71,19 @@ body > section > table td {
 }
 
 body > section > table th:first-child {
-    border-left: 1px solid #999;
+    border-left: 1px solid #ccc;
 }
 
 body > section > table td:first-child {
-    border-left: 1px solid #999;
+    border-left: 1px solid #ccc;
 }
 
 body > section > table th:last-child {
-    border-right: 1px solid #999;
+    border-right: 1px solid #ccc;
 }
 
 body > section > table td:last-child {
-    border-right: 1px solid #999;
+    border-right: 1px solid #ccc;
 }
 
 body > section > table tr:last-child td {
@@ -146,12 +150,64 @@ textarea {
     width: 100%;
 }
 
-p.note {
-
+body > section > p.note {
+    border: 1px solid #ccc;
+    padding: 0.35em 0.5em;
+    background: ivory;
 }
 
-form.search input[type=text] {
-    width: 8em;
+body > section > form.search {
+    border: 1px solid #ccc;
+    background: aliceblue;
+}
+
+body > section form.search input[type=text] {
+    width: 10em;
+}
+
+body > section > form.search table {
+}
+
+body > section > form.search table tr th {
+    font-weight: normal;
+    text-align: left;
+    padding: 0.5em 0.25em 0 0;
+    white-space: nowrap;
+    font-style: italic;
+    font-size: smaller;
+}
+
+body > section > form.search table tr th:first-child {
+    padding-left: 0.6em;
+}
+
+body > section > form.search table tr th:last-child {
+    padding-right: 0.6em;
+}
+
+body > section > form.search table tr td {
+    font-weight: normal;
+    text-align: left;
+    padding: 0.25em 0.25em 0.25em 0;
+    white-space: nowrap;
+}
+
+body > section > form.search table tr td input[type=text] {
+    display: inline-block;
+    margin-left: 0;
+}
+
+body > section > form.search table tr td:first-child {
+    padding-left: 0.35em;
+}
+
+body > section > form.search table tr td:last-child {
+    padding-right: 0.35em;
+    width: 100%;
+}
+
+body > section > form.search table tr:last-child td {
+    padding-bottom: 0.5em;
 }
 
 </style>

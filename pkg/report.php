@@ -63,6 +63,11 @@ class Package_Report extends Package
                 include ROOT .'tpl/report/slow_queries_checksum.php';
                 break;
 
+            case 'sampled_queries':
+                list ($rows, $dns, $g_cols, $g_rows) = $this->data_sampled_queries();
+                include ROOT .'tpl/report/sampled_queries.php';
+                break;
+
             case 'schemas':
                 list ($rows) = $this->data_schemas();
                 include ROOT .'tpl/report/schemas.php';
@@ -797,6 +802,127 @@ class Package_Report extends Package
             ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%')
             //->having('max_time > 10')
             ->group('pql.checksum')
+            ->order('sum_time', 'desc')
+            ->order('max_time', 'desc')
+            ->limit(50);
+
+        $host_ids = array();
+        if ($host)
+        {
+            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
+                ->fetch_field('id');
+            $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
+        }
+
+        if ($schema)
+        {
+            $search->where_regexp('pql.db', $schema);
+        }
+
+        if ($user)
+        {
+            $search->where_regexp('pql.user', $user);
+        }
+
+        if ($query)
+        {
+            $search->where_regexp('pql.info', $query, $qmode != 'ne');
+        }
+
+        $rows = $search->fetch_all('checksum');
+
+        $period = ($hours*3).' minute';
+
+        $g_cols = array(
+            'x' => array('Time', 'datetime'),
+            'y' => array('Active Slow Queries, '.$period.' sample', 'number'),
+        );
+
+        $bars = array();
+
+        for ($i = 0; $i < round($hours*(20/$hours)); $i++)
+        {
+            $search = sql::query('processlist_query_log pql')
+                //->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+                ->fields(array(
+                    'now() - interval '.(($i+1)*($hours*3)).' minute as x',
+                    'count(distinct concat(pql.server_id,":",pql.id,":",pql.checksum)) as y',
+                ))
+                ->where_not_null('pql.checksum')
+                ->where_gt('pql.time', 1)
+                ->where('pql.stamp > now() - interval '.(($i+1)*($hours*3)).' minute')
+                ->where('pql.stamp < now() - interval '.(($i)*($hours*3)).' minute')
+                ->where_not_like('lower(trim(pql.info))', 'show%')
+                ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%');
+
+            if ($host)
+            {
+                $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
+            }
+
+            if ($schema)
+            {
+                $search->where_regexp('pql.db', $schema);
+            }
+
+            if ($user)
+            {
+                $search->where_regexp('pql.user', $user);
+            }
+
+            if ($query)
+            {
+                $search->where_regexp('pql.info', $query, $qmode != 'ne');
+            }
+
+            $bars[] = $search->get_select();
+        }
+
+        $g_rows = sql::command(join(' union ', $bars))
+            ->fetch_all();
+
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+        return array( $rows, $dns, $g_cols, $g_rows );
+    }
+
+    private function data_sampled_queries()
+    {
+        $host   = $this->request('host');
+        $schema = $this->request('schema');
+        $user   = $this->request('user');
+        $query  = $this->request('query');
+        $hours  = $this->request('hours', 'float', 1);
+
+        $qmode = $this->request('qmode', 'string', 'eq');
+
+        $search = sql::query('tendril.processlist_query_log pql')
+            ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+            ->fields(array(
+                'pql.checksum',
+                'count(*) as hits',
+                'max(pql.time) as max_time',
+                'avg(pql.time) as avg_time',
+                'sum(pql.time) as sum_time',
+                'group_concat(distinct pql.user) as users',
+                'group_concat(distinct pql.db order by pql.db) as dbs',
+                'group_concat(distinct pql.server_id order by srv.host) as servers',
+                'pql.info as sample',
+                'pql.db as sample_db',
+                'pql.time as sample_time',
+                'pql.server_id as sample_server_id',
+            ))
+            ->where_not_null('pql.checksum')
+            ->where('pql.stamp > now() - interval '.$hours.' hour')
+            ->where_not_like('lower(trim(pql.info))', 'show%')
+            ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%')
+            //->having('max_time > 10')
+            ->group('pql.checksum')
+            ->order('hits', 'desc')
             ->order('sum_time', 'desc')
             ->order('max_time', 'desc')
             ->limit(50);

@@ -1,7 +1,6 @@
 
 <p class="note">
-	Overview pulled from SHOW FULL PROCESSLIST snapshots (10s interval) in <a href="/activity">activity</a>.
-	For more detail see <a href="https://ishmael.wikimedia.org">ishmael</a>.
+	<strong>Slow Queries</strong> pulled from SHOW FULL PROCESSLIST snapshots (10s interval) in <a href="/activity">activity</a>.
 </p>
 
 <style>
@@ -13,28 +12,48 @@
 	color: #999;
 }
 #chart {
-	border: 1px solid #999;
+	border: 1px solid #ccc;
 	margin-bottom: 1em;
 }
 </style>
 
 <form method="GET" class="search">
-	<strong>host</strong>
-	<input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
-	<strong>user</strong>
-	<input type="text" name="user" value="<?= escape(pkg()->request('user')) ?>" placeholder="regex" />
-	<strong>schema</strong>
-	<input type="text" name="schema" value="<?= escape(pkg()->request('schema')) ?>" placeholder="regex" />
-	<strong>query</strong>
-	<select name="qmode">
-		<option value="eq" <?= pkg()->request('qmode') == 'eq' ? ' selected': '' ?>>=~</option>
-		<option value="ne" <?= pkg()->request('qmode') == 'ne' ? ' selected': '' ?>>!~</option>
-	</select>
-	<input type="text" name="query" value="<?= escape(pkg()->request('query')) ?>" placeholder="regex" />
-	<strong>hours</strong>
-	<input style="width: 2em" type="text" name="hours" value="<?= escape(pkg()->request('hours')) ?>" placeholder="#" />
-	<input type="submit" value="Search" />
+    <table cellspacing="0" cellpadding="0">
+    <tr>
+        <th>Host</th>
+        <th>User</th>
+        <th>Schema</th>
+        <th>Query</th>
+        <th>Hours</th>
+        <th></th>
+    </tr>
+    <tr>
+        <td>
+            <input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="text" name="user" value="<?= escape(pkg()->request('user')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="text" name="schema" value="<?= escape(pkg()->request('schema')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <select name="qmode">
+                <option value="eq" <?= pkg()->request('qmode') == 'eq' ? ' selected': '' ?>>=~</option>
+                <option value="ne" <?= pkg()->request('qmode') == 'ne' ? ' selected': '' ?>>!~</option>
+            </select>
+            <input type="text" name="query" value="<?= escape(pkg()->request('query')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input style="width: 2em" type="text" name="hours" value="<?= escape(pkg()->request('hours')) ?>" placeholder="#" />
+        </td>
+        <td>
+            <input type="submit" value="Search" />
+        </td>
+    </tr>
+    </table>
 </form>
+
 
 <script type="text/javascript">
 
