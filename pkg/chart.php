@@ -33,93 +33,79 @@ class Package_Chart extends Package_Report
                 'x' => array($mins.'min', 'datetime'),
             );
 
-            $fields = array(
-                'now() - interval value*'.$mins.' minute as x',
-            );
+            $seq_upper = $hours * round(60/$mins);
 
-            $mode = sprintf('cast(ifnull(%s,0) as unsigned)',
-                $mode == 'delta' ? 'max(gsl.value) - min(gsl.value)' : 'max(gsl.value)');
+            $name_ids = sql::query('tendril.strings')
+                ->cache(sql::MEMCACHE, 300)
+                ->where_regexp('string', $vars)
+                ->fetch_pair('string', 'id');
 
             $servers = sql::query('tendril.servers srv')
                 ->cache(sql::MEMCACHE, 3600)
                 ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                 ->limit(10)
-                ->fields('id')->fetch_field('id');
+                ->fields(array('host', 'port', 'id'))
+                ->fetch_all('id');
 
-            $names = sql::query('tendril.strings')
-                ->cache(sql::MEMCACHE, 3600)
-                ->where_regexp('string', $vars)
-                ->limit(10)
-                ->fetch_pair('string', 'id');
+            $inner = sql::query('seq_1_to_'.$seq_upper.' s')
+                ->fields('now() - interval seq * '.$mins.' minute as x')
+                ->left_join('tendril.global_status_log gsl',
+                    sprintf('gsl.stamp > now() - interval '.$hours.' hour'))
+                ->where_in('gsl.server_id', array_keys($servers))
+                ->where_in('gsl.name_id', $name_ids)
+                ->where_between('gsl.stamp',
+                    sql::expr('now() - interval seq * '.$mins.' minute - interval '.$mins.' minute'),
+                    sql::expr('now() - interval seq * '.$mins.' minute'))
+                ->group('x');
 
-            $i = 1;
-            foreach ($servers as $server_id)
+            $outer = sql::query()
+                ->from('(select now() - interval seq * '.$mins.' minute as x from seq_1_to_'.$seq_upper.')', 'o')
+                ->cache(sql::MEMCACHE, $mins*60)
+                ->fields('o.x')
+                ->order('x');
+
+
+            $i = 0;
+            foreach ($servers as $server_id => $server)
             {
-                $host = new Host($server_id);
+                $host = substr($server['host'], 0, strpos($server['host'], '.'));
+                if ($server['port'] != 3306) $host .= ':'.$server['port'];
 
-                if ($vgroup)
+                foreach ($name_ids as $name => $id)
                 {
-                    $cols['y'.$i] = array(
-                        $host->describe(),
-                        'number'
+                    $cols['y'.($i+1)] = count($servers) > 1
+                        ? array($host.' '.$name, 'number')
+                        : array($name, 'number');
+
+                    $outer->field(
+                        sprintf('i.y%d', ($i+1))
                     );
 
-                    $subqueries = array();
-
-                    foreach ($names as $name => $name_id)
+                    if ($mode == 'delta')
                     {
-                        $table = preg_match('/Seconds_Behind_Master/', $name)
-                            ? 'tendril.slave_status_log': 'tendril.global_status_log';
-
-                        $subqueries[] = sprintf('(%s)',
-                            sql::query($table.' gsl')
-                                ->fields($mode)
-                                ->where('gsl.stamp between x - interval '.$mins.' minute and x')
-                                ->where_eq('gsl.server_id', $server_id)
-                                ->where_eq('gsl.name_id', $name_id)
-                                ->where('gsl.stamp > now() - interval 24 hour')
-                                ->get_select()
+                        $inner->field(
+                            sprintf("cast(ifnull(max(if(server_id = %d and name_id = %d,cast(value as unsigned),0)),0) -"
+                                ." ifnull(min(if(server_id = %d and name_id = %d,cast(value as unsigned),null)),0) as unsigned) as %s",
+                                $server_id, $id, $server_id, $id, 'y'.($i+1)
+                            )
                         );
-
                     }
-                    $fields[] = sprintf('(%s) as y%d', $subqueries ? join(' + ', $subqueries): '0', $i);
+                    else
+                    {
+                        $inner->field(
+                            sprintf("cast(ifnull(max(if(server_id = %d and name_id = %d,cast(value as unsigned),0)),0) as unsigned) as %s",
+                                $server_id, $id, 'y'.($i+1)
+                            )
+                        );
+                    }
                     $i++;
-                }
-                else
-                {
-                    foreach ($names as $name => $name_id)
-                    {
-                        $cols['y'.$i] = array(
-                            $host->describe() . (count($names) > 1 ? ' '.$name: ''),
-                            'number'
-                        );
-
-                        $table = preg_match('/Seconds_Behind_Master/', $name)
-                            ? 'tendril.slave_status_log': 'tendril.global_status_log';
-
-                        $fields[] = sprintf('(%s) as y%d',
-                            sql::query($table.' gsl')
-                                ->fields($mode)
-                                ->where('gsl.stamp between x - interval '.$mins.' minute and x')
-                                ->where_eq('gsl.server_id', $server_id)
-                                ->where_eq('gsl.name_id', $name_id)
-                                ->where('gsl.stamp > now() - interval 24 hour')
-                                ->get_select(),
-                            $i
-                        );
-
-                        $i++;
-                    }
                 }
             }
 
-            $rows = sql::query('sequence s')
-                ->cache(sql::MEMCACHE, $mins*60)
-                ->where_between('value', 1, $hours * round(60/$mins))
-                ->having('x is not null')
-                ->fields($fields)
-                ->order('value')
-                ->fetch_all();
+            $rows = $outer->left_join(
+                sprintf('(%s) as i', $inner->get_select()),
+                'o.x = i.x')
+            ->fetch_all();
         }
 
         return array( $cols, $rows );
