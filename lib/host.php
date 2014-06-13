@@ -10,6 +10,7 @@ $clusters = array(
     gethostbyname('s7-master') => 's7',
     gethostbyname('m1-master') => 'm1',
     gethostbyname('m2-master') => 'm2',
+    gethostbyname('m3-master') => 'm3',
     gethostbyname('x1-master') => 'x1',
 );
 

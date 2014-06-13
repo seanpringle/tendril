@@ -59,9 +59,20 @@
 </style>
 
 <form method="GET" class="search">
-	<strong>host</strong>
-	<input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" />
-	<input type="submit" value="Search" />
+    <table cellspacing="0" cellpadding="0">
+    <tr>
+        <th>Host</th>
+        <th></th>
+    </tr>
+    <tr>
+        <td>
+            <input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="submit" value="Search" />
+        </td>
+    </tr>
+    </table>
 </form>
 
 <table id="innodb">

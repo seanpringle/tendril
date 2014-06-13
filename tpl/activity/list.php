@@ -20,24 +20,40 @@
 
 </style>
 
-<form id="activity-hide" method="GET">
-    <input type="submit" value="Hide Users &raquo;" />
-    <label>
-        <input type="checkbox" name="wikiadmin" value="0" <?= pkg()->request('wikiadmin', 'uint', 1) === 0 ? 'checked':'' ?> />
-        <span>wikiadmin</span>
-    </label>
-    <label>
-        <input type="checkbox" name="wikiuser" value="0" <?= pkg()->request('wikiuser', 'uint', 1) === 0 ? 'checked':'' ?> />
-        <span>wikiuser</span>
-    </label>
-    <label>
-        <input type="checkbox" name="research" value="0" <?= pkg()->request('research', 'uint', 1) === 0 ? 'checked':'' ?> />
-        <span>research</span>
-    </label>
-    <label>
-        <input type="checkbox" name="labsusers" value="0" <?= pkg()->request('labsusers', 'uint', 1) === 0 ? 'checked':'' ?> />
-        <span>labs users</span>
-    </label>
+<form id="activity-hide" method="GET" class="search">
+    <table cellspacing="0" cellpadding="0">
+    <tr>
+        <td>
+            <input type="submit" value="Hide Users &raquo;" />
+        </td>
+        <td>
+            <label>
+                <input type="checkbox" name="wikiadmin" value="0" <?= pkg()->request('wikiadmin', 'uint', 1) === 0 ? 'checked':'' ?> />
+                <span>wikiadmin</span>
+            </label>
+        </td>
+        <td>
+            <label>
+                <input type="checkbox" name="wikiuser" value="0" <?= pkg()->request('wikiuser', 'uint', 1) === 0 ? 'checked':'' ?> />
+                <span>wikiuser</span>
+            </label>
+        </td>
+        <td>
+            <label>
+                <input type="checkbox" name="research" value="0" <?= pkg()->request('research', 'uint', 1) === 0 ? 'checked':'' ?> />
+                <span>research</span>
+            </label>
+        </td>
+        <td>
+            <label>
+                <input type="checkbox" name="labsusers" value="0" <?= pkg()->request('labsusers', 'uint', 1) === 0 ? 'checked':'' ?> />
+                <span>labs users</span>
+            </label>
+        </td>
+    </tr>
+    </table>
+</form>
+
 </form>
 
 <table id="activity-processlist">

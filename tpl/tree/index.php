@@ -1,5 +1,11 @@
 <style>
 
+#charts {
+    background: #fff;
+    border: 1px solid #ccc;
+    padding: 1em;
+}
+
 #charts table {
     border-collapse: separate !important;
 }

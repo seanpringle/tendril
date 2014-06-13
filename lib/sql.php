@@ -383,10 +383,16 @@ class sql
             $table = self::quote_name($table);
         }
 
-        $args = func_get_args(); array_shift($args);
-        $clause = call_user_func_array('self::clause', $args);
-
-        $this->join[] = sprintf('join '. $table .($alias ? ' '.$alias:'') . ' on ' . $clause);
+        if ($on)
+        {
+            $args = func_get_args(); array_shift($args);
+            $clause = call_user_func_array('self::clause', $args);
+            $this->join[] = sprintf('join '. $table .($alias ? ' '.$alias:'') . ' on ' . $clause);
+        }
+        else
+        {
+            $this->join[] = sprintf('join '. $table .($alias ? ' '.$alias:''));
+        }
 
         return $this;
     }
@@ -703,6 +709,16 @@ class sql
         $s = new static($table);
         if ($cache) $s->cache($cache);
         if (!is_null($db)) $s->db($db);
+        return $s;
+    }
+
+    // initializer
+    public static function rawquery($sql=null, $cache=sql::NOCACHE, $db=null)
+    {
+        $s = new static();
+        if ($cache) $s->cache($cache);
+        if (!is_null($db)) $s->db($db);
+        $s->execute($sql);
         return $s;
     }
 

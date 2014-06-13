@@ -68,6 +68,11 @@ class Package_Report extends Package
                 include ROOT .'tpl/report/sampled_queries.php';
                 break;
 
+            case 'sampled_queries_footprint':
+                list ($rows, $dns, $g_cols, $g_rows) = $this->data_sampled_queries_footprint();
+                include ROOT .'tpl/report/sampled_queries_footprint.php';
+                break;
+
             case 'schemas':
                 list ($rows) = $this->data_schemas();
                 include ROOT .'tpl/report/schemas.php';
@@ -156,6 +161,21 @@ class Package_Report extends Package
                     ->fields('concat(host,":",port) as h')
                     ->fetch_field('h');
                 return sprintf('(%s|%s)', $host, join('|', $hosts));
+            },
+            $text
+        );
+        $text = preg_replace_callback('/slave-per-master/',
+            function($match) {
+                $masters = sql::query('tendril.servers')
+                    ->where_null('m_master_id')
+                    ->fetch_field('id');
+                $hosts = sql::query('tendril.servers')
+                    ->where_in('m_master_id', $masters)
+                    ->fields('concat(host,":",port) as h')
+                    ->group('h')
+                    ->order('h', 'desc')
+                    ->fetch_field('h');
+                return sprintf('(%s)', $host, join('|', $hosts));
             },
             $text
         );
@@ -620,151 +640,182 @@ class Package_Report extends Package
     {
         $host = $this->request('host');
 
-        $purge = sql::query('tendril.global_status')
-            ->fields('variable_value')->where('server_id = srv.id')
-            ->where_eq('variable_name', 'innodb_history_list_length');
+        $string_ids = sql::query('tendril.strings')
+            ->where_in('string', array(
+                'innodb_buffer_pool_read_requests',
+                'innodb_buffer_pool_reads',
+                'innodb_data_read',
+                'innodb_data_written',
+                'innodb_deadlocks',
+                'innodb_s_lock_os_waits',
+                'innodb_x_lock_os_waits',
+                'innodb_s_lock_spin_waits',
+                'innodb_x_lock_spin_waits',
+                'innodb_s_lock_spin_rounds',
+                'innodb_x_lock_spin_rounds',
+            ))
+            ->cache(sql::MEMCACHE, self::EXPIRE)
+            ->fetch_pair('string', 'id');
 
-        $fpt = sql::query('tendril.global_variables')
-            ->fields('variable_value')->where('server_id = srv.id')
-            ->where_eq('variable_name', 'innodb_file_per_table');
-
-        $bps = sql::query('tendril.global_variables')
-            ->fields('variable_value/1024/1024/1024')->where('server_id = srv.id')
-            ->where_eq('variable_name', 'innodb_buffer_pool_size');
-
-        $lfs = sql::query('tendril.global_variables')
-            ->fields('variable_value/1024/1024')->where('server_id = srv.id')
-            ->where_eq('variable_name', 'innodb_log_file_size');
-
-        $flatc = sql::query('tendril.global_variables')
-            ->fields('variable_value')->where('server_id = srv.id')
-            ->where_eq('variable_name', 'innodb_flush_log_at_trx_commit');
-
-        $reqs_id  = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_buffer_pool_read_requests')->fetch_value('id');
-        $reads_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_buffer_pool_reads')->fetch_value('id');
-
-        $bphr = sql::query('tendril.global_status_log_5m gs1')
-            ->join('tendril.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
-            ->where('gs1.server_id = srv.id')
-            ->where('gs2.server_id = srv.id')
-            ->where_eq('gs1.name_id', $reqs_id)
-            ->where_eq('gs2.name_id', $reads_id)
-            ->where('gs1.stamp > now() - interval 1 hour')
-            ->where('gs2.stamp > now() - interval 1 hour')
-            ->fields('(max(gs1.value)-min(gs1.value))/((max(gs1.value)-min(gs1.value))+(max(gs2.value)-min(gs2.value))) * 100');
-
-        $bpwf = sql::query('tendril.global_status')
-            ->fields('variable_value')->where('server_id = srv.id')
-            ->where_eq('variable_name', 'innodb_buffer_pool_wait_free');
-
-        $r_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_data_read')->fetch_value('id');
-        $w_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_data_written')->fetch_value('id');
-
-        $io = sql::query('tendril.global_status_log_5m gs1')
-            ->join('tendril.global_status_log_5m gs2', 'gs1.server_id = gs2.server_id')
-            ->where('gs1.server_id = srv.id')
-            ->where('gs2.server_id = srv.id')
-            ->where_eq('gs1.name_id', $r_id)
-            ->where_eq('gs2.name_id', $w_id)
-            ->where('gs1.stamp > now() - interval 1 hour')
-            ->where('gs2.stamp > now() - interval 1 hour')
-            ->fields('(max(gs1.value)-min(gs1.value)) / (max(gs2.value)-min(gs2.value))');
-
-        $dl_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_deadlocks')->fetch_value('id');
-
-        $deadlocks = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $dl_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('max(value)-min(value)');
-
-        $s_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_s_lock_os_waits')->fetch_value('id');
-        $x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_x_lock_os_waits')->fetch_value('id');
-
-        $os_s_waits = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $s_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('(max(value)-min(value)) / 3600');
-
-        $os_x_waits = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $x_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('(max(value)-min(value)) / 3600');
-
-        $s_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_s_lock_spin_waits')->fetch_value('id');
-        $x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_x_lock_spin_waits')->fetch_value('id');
-
-        $spin_s_waits = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $s_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('(max(value)-min(value)) / 3600');
-
-        $spin_x_waits = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $x_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('(max(value)-min(value)) / 3600');
-
-        $s_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_s_lock_spin_rounds')->fetch_value('id');
-        $x_id = sql::query('tendril.strings')->cache(sql::MEMCACHE, self::EXPIRE)
-            ->where_eq('string', 'innodb_x_lock_spin_rounds')->fetch_value('id');
-
-        $spin_s_rounds = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $s_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('(max(value)-min(value)) / 3600');
-
-        $spin_x_rounds = sql::query('tendril.global_status_log_5m')
-            ->where('server_id = srv.id')
-            ->where_eq('name_id', $x_id)
-            ->where('stamp > now() - interval 1 hour')
-            ->fields('(max(value)-min(value)) / 3600');
+        $bpool_reqs_id    = $string_ids['innodb_buffer_pool_read_requests'];
+        $bpool_reads_id   = $string_ids['innodb_buffer_pool_reads'];
+        $data_read_id     = $string_ids['innodb_data_read'];
+        $data_written_id  = $string_ids['innodb_data_written'];
+        $deadlocks_id     = $string_ids['innodb_deadlocks'];
+        $os_s_waits_id    = $string_ids['innodb_s_lock_os_waits'];
+        $os_x_waits_id    = $string_ids['innodb_x_lock_os_waits'];
+        $spin_s_waits_id  = $string_ids['innodb_s_lock_spin_waits'];
+        $spin_x_waits_id  = $string_ids['innodb_x_lock_spin_waits'];
+        $spin_s_rounds_id = $string_ids['innodb_s_lock_spin_rounds'];
+        $spin_x_rounds_id = $string_ids['innodb_x_lock_spin_rounds'];
 
         $search = sql::query('tendril.servers srv')
-            ->cache(sql::MEMCACHE, 300) // global_status_log_5m
-
+            ->fields('srv.id')
             ->order('srv.host')
-            ->order('srv.port')
-
-            ->fields(array(
-                'srv.*',
-                sprintf('(%s) as innodb_file_per_table', $fpt->get_select()),
-                sprintf('(%s) as innodb_buffer_pool_size', $bps->get_select()),
-                sprintf('(%s) as innodb_log_file_size', $lfs->get_select()),
-                sprintf('(%s) as innodb_flush_log_at_trx_commit', $flatc->get_select()),
-                sprintf('(%s) as innodb_history_list_length', $purge->get_select()),
-                sprintf('(%s) as innodb_buffer_pool_wait_free', $bpwf->get_select()),
-                sprintf('(%s) as buffer_pool_hit_rate', $bphr->get_select()),
-                sprintf('(%s) as io_ratio', $io->get_select()),
-                sprintf('(%s) as os_s_waits', $os_s_waits->get_select()),
-                sprintf('(%s) as os_x_waits', $os_x_waits->get_select()),
-                sprintf('(%s) as spin_s_waits', $spin_s_waits->get_select()),
-                sprintf('(%s) as spin_x_waits', $spin_x_waits->get_select()),
-                sprintf('(%s) as spin_s_rounds', $spin_s_rounds->get_select()),
-                sprintf('(%s) as spin_x_rounds', $spin_x_rounds->get_select()),
-                sprintf('(%s) as deadlocks', $deadlocks->get_select()),
-            ));
+            ->order('srv.port');
 
         if ($host)
         {
             $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
         }
 
-        $rows = $search->fetch_all();
+        $server_ids = $search->fetch_field('id');
+        $searches = array();
+
+        foreach ($server_ids as $server_id)
+        {
+            $purge = sql::query('tendril.global_status')
+                ->fields('variable_value')->where_eq('server_id', $server_id)
+                ->where_eq('variable_name', 'innodb_history_list_length');
+
+            $fpt = sql::query('tendril.global_variables')
+                ->fields('variable_value')->where_eq('server_id', $server_id)
+                ->where_eq('variable_name', 'innodb_file_per_table');
+
+            $bps = sql::query('tendril.global_variables')
+                ->fields('variable_value/1024/1024/1024')->where_eq('server_id', $server_id)
+                ->where_eq('variable_name', 'innodb_buffer_pool_size');
+
+            $lfs = sql::query('tendril.global_variables')
+                ->fields('variable_value/1024/1024')->where_eq('server_id', $server_id)
+                ->where_eq('variable_name', 'innodb_log_file_size');
+
+            $flatc = sql::query('tendril.global_variables')
+                ->fields('variable_value')->where_eq('server_id', $server_id)
+                ->where_eq('variable_name', 'innodb_flush_log_at_trx_commit');
+
+            $bphr = sql::query('tendril.global_status_log gs1')
+                ->join('tendril.global_status_log gs2')
+                ->where_eq('gs1.server_id', $server_id)
+                ->where_eq('gs2.server_id', $server_id)
+                ->where_eq('gs1.name_id', $bpool_reqs_id)
+                ->where_eq('gs2.name_id', $bpool_reads_id)
+                ->where('gs1.stamp > now() - interval 1 hour')
+                ->where('gs2.stamp > now() - interval 1 hour')
+                ->fields('(max(gs1.value)-min(gs1.value))/((max(gs1.value)-min(gs1.value))+(max(gs2.value)-min(gs2.value))) * 100');
+
+            $bpwf = sql::query('tendril.global_status')
+                ->fields('variable_value')->where_eq('server_id', $server_id)
+                ->where_eq('variable_name', 'innodb_buffer_pool_wait_free');
+
+            $ior = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $data_read_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('max(value)-min(value)');
+
+            $iow = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $data_written_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('max(value)-min(value)');
+
+            $deadlocks = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $deadlocks_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('max(value)-min(value)');
+
+            $os_s_waits = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $os_s_waits_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('(max(value)-min(value)) / 3600');
+
+            $os_x_waits = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $os_x_waits_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('(max(value)-min(value)) / 3600');
+
+            $spin_s_waits = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $spin_s_waits_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('(max(value)-min(value)) / 3600');
+
+            $spin_x_waits = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $spin_x_waits_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('(max(value)-min(value)) / 3600');
+
+            $spin_s_rounds = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $spin_s_rounds_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('(max(value)-min(value)) / 3600');
+
+            $spin_x_rounds = sql::query('tendril.global_status_log')
+                ->where_eq('server_id', $server_id)
+                ->where_eq('name_id', $spin_x_rounds_id)
+                ->where('stamp > now() - interval 1 hour')
+                ->fields('(max(value)-min(value)) / 3600');
+
+            $search = sql::query('tendril.servers srv')
+                ->where_eq('srv.id', $server_id)
+
+                ->fields(array(
+                    'srv.*',
+                    sprintf('(%s) as innodb_file_per_table',
+                        $fpt->get_select()),
+                    sprintf('(%s) as innodb_buffer_pool_size',
+                        $bps->get_select()),
+                    sprintf('(%s) as innodb_log_file_size',
+                        $lfs->get_select()),
+                    sprintf('(%s) as innodb_flush_log_at_trx_commit',
+                        $flatc->get_select()),
+                    sprintf('(%s) as innodb_history_list_length',
+                        $purge->get_select()),
+                    sprintf('(%s) as innodb_buffer_pool_wait_free',
+                        $bpwf->get_select()),
+                    sprintf('(%s) as buffer_pool_hit_rate',
+                        $bphr->get_select()),
+                    sprintf('((%s) / (%s)) as io_ratio',
+                        $ior->get_select(),
+                        $iow->get_select()),
+                    sprintf('(%s) as os_s_waits',
+                        $os_s_waits->get_select()),
+                    sprintf('(%s) as os_x_waits',
+                        $os_x_waits->get_select()),
+                    sprintf('(%s) as spin_s_waits',
+                        $spin_s_waits->get_select()),
+                    sprintf('(%s) as spin_x_waits',
+                        $spin_x_waits->get_select()),
+                    sprintf('(%s) as spin_s_rounds',
+                        $spin_s_rounds->get_select()),
+                    sprintf('(%s) as spin_x_rounds',
+                        $spin_x_rounds->get_select()),
+                    sprintf('(%s) as deadlocks',
+                        $deadlocks->get_select()),
+                ));
+
+            $searches[] = $search->get_select();
+        }
+
+        $rows = sql::rawquery(join($searches, ' union '))
+            ->cache(sql::MEMCACHE, 300)
+            ->fetch_all();
 
         return array( $rows );
     }
@@ -802,127 +853,6 @@ class Package_Report extends Package
             ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%')
             //->having('max_time > 10')
             ->group('pql.checksum')
-            ->order('sum_time', 'desc')
-            ->order('max_time', 'desc')
-            ->limit(50);
-
-        $host_ids = array();
-        if ($host)
-        {
-            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
-                ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
-                ->fetch_field('id');
-            $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
-        }
-
-        if ($schema)
-        {
-            $search->where_regexp('pql.db', $schema);
-        }
-
-        if ($user)
-        {
-            $search->where_regexp('pql.user', $user);
-        }
-
-        if ($query)
-        {
-            $search->where_regexp('pql.info', $query, $qmode != 'ne');
-        }
-
-        $rows = $search->fetch_all('checksum');
-
-        $period = ($hours*3).' minute';
-
-        $g_cols = array(
-            'x' => array('Time', 'datetime'),
-            'y' => array('Active Slow Queries, '.$period.' sample', 'number'),
-        );
-
-        $bars = array();
-
-        for ($i = 0; $i < round($hours*(20/$hours)); $i++)
-        {
-            $search = sql::query('processlist_query_log pql')
-                //->left_join('tendril.servers srv', 'pql.server_id = srv.id')
-                ->fields(array(
-                    'now() - interval '.(($i+1)*($hours*3)).' minute as x',
-                    'count(distinct concat(pql.server_id,":",pql.id,":",pql.checksum)) as y',
-                ))
-                ->where_not_null('pql.checksum')
-                ->where_gt('pql.time', 1)
-                ->where('pql.stamp > now() - interval '.(($i+1)*($hours*3)).' minute')
-                ->where('pql.stamp < now() - interval '.(($i)*($hours*3)).' minute')
-                ->where_not_like('lower(trim(pql.info))', 'show%')
-                ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%');
-
-            if ($host)
-            {
-                $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
-            }
-
-            if ($schema)
-            {
-                $search->where_regexp('pql.db', $schema);
-            }
-
-            if ($user)
-            {
-                $search->where_regexp('pql.user', $user);
-            }
-
-            if ($query)
-            {
-                $search->where_regexp('pql.info', $query, $qmode != 'ne');
-            }
-
-            $bars[] = $search->get_select();
-        }
-
-        $g_rows = sql::command(join(' union ', $bars))
-            ->fetch_all();
-
-        $dns = sql::query('tendril.dns')
-            ->cache(sql::MEMCACHE, 300)
-            ->group('ipv4')
-            ->fetch_pair('ipv4', 'host');
-
-        return array( $rows, $dns, $g_cols, $g_rows );
-    }
-
-    private function data_sampled_queries()
-    {
-        $host   = $this->request('host');
-        $schema = $this->request('schema');
-        $user   = $this->request('user');
-        $query  = $this->request('query');
-        $hours  = $this->request('hours', 'float', 1);
-
-        $qmode = $this->request('qmode', 'string', 'eq');
-
-        $search = sql::query('tendril.processlist_query_log pql')
-            ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
-            ->fields(array(
-                'pql.checksum',
-                'count(*) as hits',
-                'max(pql.time) as max_time',
-                'avg(pql.time) as avg_time',
-                'sum(pql.time) as sum_time',
-                'group_concat(distinct pql.user) as users',
-                'group_concat(distinct pql.db order by pql.db) as dbs',
-                'group_concat(distinct pql.server_id order by srv.host) as servers',
-                'pql.info as sample',
-                'pql.db as sample_db',
-                'pql.time as sample_time',
-                'pql.server_id as sample_server_id',
-            ))
-            ->where_not_null('pql.checksum')
-            ->where('pql.stamp > now() - interval '.$hours.' hour')
-            ->where_not_like('lower(trim(pql.info))', 'show%')
-            ->where_not_like('lower(trim(pql.info))', 'select master_pos_wait%')
-            //->having('max_time > 10')
-            ->group('pql.checksum')
-            ->order('hits', 'desc')
             ->order('sum_time', 'desc')
             ->order('max_time', 'desc')
             ->limit(50);
@@ -1093,6 +1023,185 @@ class Package_Report extends Package
             ->fields($fields)
             ->order('x')
             ->fetch_all();
+
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+        return array( $rows, $dns, $g_cols, $g_rows );
+    }
+
+    private function data_sampled_queries()
+    {
+        $host   = $this->request('host');
+        $query  = $this->request('query');
+        $hours  = $this->request('hours', 'float', 1);
+
+        $qmode = $this->request('qmode', 'string', 'eq');
+
+        $search = sql::query('tendril.queries_seen_log qsl')
+            ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
+            ->join('tendril.queries q', 'qsl.checksum = q.checksum')
+            ->fields(array(
+                'q.footprint',
+                'count(*) as hits',
+                'group_concat(distinct qsl.server_id order by srv.host) as servers',
+                'q.template as template',
+                'q.content as sample',
+                'qsl.server_id as sample_server_id',
+            ))
+            ->where_not_null('q.footprint')
+            ->where('qsl.stamp > now() - interval '.$hours.' hour')
+            ->group('qsl.checksum')
+            ->order('hits', 'desc')
+            ->limit(50);
+
+        $host_ids = array();
+        if ($host)
+        {
+            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
+                ->fetch_field('id');
+            $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
+        }
+
+        if ($query)
+        {
+            $search->where_regexp('q.content', $query, $qmode != 'ne');
+        }
+        else
+        {
+            $search->where_regexp('lower(q.content)', '^[[:space:]]*(select|insert|update|delete)', $qmode != 'ne');
+        }
+
+        $rows = $search->fetch_all('footprint');
+
+        $period = ($hours*3).' minute';
+
+        $g_cols = array(
+            'x' => array('Time', 'datetime'),
+            'y' => array('Sampled Queries, '.$period.' sample', 'number'),
+        );
+
+        $bars = array();
+
+        for ($i = 0; $i < round($hours*(20/$hours)); $i++)
+        {
+            $search = sql::query('queries_seen_log qsl')
+                //->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
+                ->join('tendril.queries q', 'qsl.checksum = q.checksum')
+                ->fields(array(
+                    'now() - interval '.(($i+1)*($hours*3)).' minute as x',
+                    'count(qsl.checksum) as y',
+                ))
+                ->where_not_null('q.footprint')
+                ->where('qsl.stamp > now() - interval '.(($i+1)*($hours*3)).' minute')
+                ->where('qsl.stamp < now() - interval '.(($i)*($hours*3)).' minute');
+
+            if ($host)
+            {
+                $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
+            }
+
+            if ($query)
+            {
+                $search->where_regexp('qsl.info', $query, $qmode != 'ne');
+            }
+            else
+            {
+                $search->where_regexp('lower(q.content)', '^[[:space:]]*(select|insert|update|delete)', $qmode != 'ne');
+            }
+            $bars[] = $search->get_select();
+        }
+
+        $g_rows = sql::command(join(' union ', $bars))
+            ->fetch_all();
+
+        $dns = sql::query('tendril.dns')
+            ->cache(sql::MEMCACHE, 300)
+            ->group('ipv4')
+            ->fetch_pair('ipv4', 'host');
+
+        return array( $rows, $dns, $g_cols, $g_rows );
+    }
+
+    private function data_sampled_queries_footprint()
+    {
+        $footprint = $this->request('footprint');
+        $host      = $this->request('host');
+        $hours     = $this->request('hours', 'float', 1);
+
+        $qmode = $this->request('qmode', 'string', 'eq');
+
+        $rows = array();
+
+        if ($footprint)
+        {
+            $search = sql::query('tendril.queries_seen_log qsl')
+                ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
+                ->join('tendril.queries q', 'qsl.checksum = q.checksum')
+                ->fields(array('qsl.*', 'q.content'))
+                ->where_eq('q.footprint', $footprint)
+                ->where('qsl.stamp > now() - interval '.$hours.' hour')
+                ->order('qsl.stamp', 'desc')
+                ->limit(50);
+
+            if ($host)
+            {
+                $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                    ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
+                    ->fetch_field('id');
+                $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
+            }
+
+            if ($query)
+            {
+                $search->where_regexp('q.content', $query, $qmode != 'ne');
+            }
+
+            $rows = $search->fetch_all();
+        }
+
+        $period = ($hours*3).' minute';
+
+        $g_cols = array(
+            'x' => array('Time', 'datetime'),
+            'y' => array('Active Queries, '.$period.' sample', 'number'),
+        );
+
+        $search = sql::query('queries_seen_log qsl')
+            ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
+            ->fields('count(qsl.server_id)')
+            ->where_eq('qsl.checksum', $checksum)
+            ->where('qsl.stamp between x - interval '.$period.' and x')
+            ->where('qsl.stamp > now() - interval '.($hours+1).' hour');
+
+        if ($host)
+        {
+            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
+                ->fetch_field('id');
+            $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
+        }
+
+        if ($query)
+        {
+            $search->where_regexp('q.content', $query, $qmode != 'ne');
+        }
+
+        $fields = array(
+            'now() - interval s.value * '.$period.' as x',
+            sprintf('(%s) as y', $search->get_select()),
+        );
+
+        $g_rows = sql::query('sequence s')
+            ->where_between('value', 0, round($hours*(20/$hours)))
+            ->having('x is not null')
+            ->fields($fields)
+            ->order('x')
+            ->fetch_all();
+
 
         $dns = sql::query('tendril.dns')
             ->cache(sql::MEMCACHE, 300)

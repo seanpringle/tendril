@@ -7,16 +7,17 @@ table.host-vars {
 }
 
 #graphs {
-    width: 1200px;
+    width: 100%;
 }
 
 #graphs .group .chart {
     display: inline-block;
     margin-bottom: 20px;
-    height: 200px;
-    width: 500px;
+    height: 300px;
+    width: 48.5%;
     background: #eee;
-    margin-right: 20px;
+    margin-right: 1%;
+    border: 1px solid #ccc;
 }
 
 #graphs-blurb {
@@ -96,10 +97,10 @@ include 'table.php';
 
                 var options = {
                     'title'  : title + ' -- ' + description,
-                    'width'  : 500,
-                    'height' : 200,
+                    'width'  : '50%',
+                    'height' : 300,
                     'legend' : { 'position': 'top' },
-                    'chartArea' : { 'width': '90%', 'left': '10%' }
+                    'chartArea' : { 'width': '85%', 'left': '12%' }
                 };
 
                 var chart = new google.visualization.AreaChart($('#'+div).get(0));

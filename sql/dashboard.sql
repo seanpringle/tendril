@@ -1,14 +1,4 @@
 
-DROP TABLE IF EXISTS global_status_log_5m;
-CREATE TABLE global_status_log_5m (
-  server_id int(10) unsigned NOT NULL,
-  stamp datetime NOT NULL,
-  name_id int(10) unsigned NOT NULL,
-  value double NOT NULL DEFAULT '0',
-  INDEX i1 (server_id, name_id, stamp),
-  INDEX i2 (stamp, name_id, server_id)
-) ENGINE=InnoDB;
-
 drop event if exists tendril_global_status_log_5m;
 drop event if exists tendril_purge_global_status_log_5m;
 
@@ -22,24 +12,10 @@ delimiter ;;
       signal sqlstate value '45000' set message_text = 'get_lock';
     end if;
 
-    select @stamp := now() - interval 5 minute;
-
-    create temporary table t1 as
-      select
-        server_id,
-        max(stamp) as stamp,
-        name_id
-      from global_status_log
-      where stamp > @stamp
-      group by server_id, name_id
-      order by null;
-
-    insert ignore into global_status_log_5m
-      select t1.*, l.value from t1 join global_status_log l
-        on t1.server_id = l.server_id and t1.name_id = l.name_id and t1.stamp = l.stamp
-          where l.stamp > @stamp;
-
-    drop table t1;
+    insert into global_status_log_5m (server_id, stamp, name_id, value)
+      select server_id, now(), n.id, gs.variable_value from global_status gs
+        join strings n on gs.variable_name = n.string
+          where gs.variable_value regexp '^[0-9\.]+';
 
     do release_lock('tendril_global_status_log_5m');
   end ;;

@@ -1,27 +1,40 @@
 
+<style type="text/css">
+#chart {
+    border: 1px solid #ccc;
+}
+</style>
+
 <form method="GET" class="search">
-
-<div style="display: inline-block; margin-right: 1em;">
-	hosts
-	<input type="text" style="width: 20em;" name="hosts" value="<?= escape(pkg()->request('hosts')) ?>" placeholder="regex" />
-</div>
-
-<div style="display: inline-block; margin-right: 1em;">
-	vars
-	<input list="vars" style="width: 20em;" type="text" name="vars" value="<?= escape(pkg()->request('vars')) ?>" placeholder="regex" />
-    <input type="checkbox" name="vg" value="1" title="group vars" <?= pkg()->request('vg', 'bool', 0) ? 'checked': '' ?> />
-</div>
-
-<div style="display: inline-block; margin-right: 1em;">
-	mode
-	<select name="mode">
-		<option value="delta"<?= pkg()->request('mode') == 'delta' ? ' selected':'' ?>>delta</option>
-		<option value="value"<?= pkg()->request('mode') == 'value' ? ' selected':'' ?>>value</option>
-	</select>
-
-	<input type="submit" value="Search" />
-</div>
-
+    <table cellspacing="0" cellpadding="0">
+    <tr>
+        <th>Host</th>
+        <th>Variable</th>
+        <th>Mode</th>
+        <th>Group</th>
+        <th></th>
+    </tr>
+    <tr>
+        <td>
+            <input type="text" style="width: 20em;" name="hosts" value="<?= escape(pkg()->request('hosts')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input list="vars" style="width: 20em;" type="text" name="vars" value="<?= escape(pkg()->request('vars')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <select name="mode">
+                <option value="delta"<?= pkg()->request('mode') == 'delta' ? ' selected':'' ?>>delta</option>
+                <option value="value"<?= pkg()->request('mode') == 'value' ? ' selected':'' ?>>value</option>
+            </select>
+        </td>
+        <td>
+            <input type="checkbox" name="vg" value="1" title="group vars" <?= pkg()->request('vg', 'bool', 0) ? 'checked': '' ?> />
+        </td>
+        <td>
+            <input type="submit" value="Search" />
+        </td>
+    </tr>
+    </table>
 </form>
 
 <?php if ($cols && $rows) { ?>
@@ -72,11 +85,6 @@ function drawChart()
 <div id="chart"></div>
 
 <?php } ?>
-
-<ul>
-	<li><a href="?hosts=masters&vars=questions&mode=delta">Masters, Questions</a></li>
-    <li><a href="?hosts=db10(62|63|27|59|45|15|39)&vars=questions&mode=delta">Slave per shard, Questions</a></li>
-</ul>
 
 <datalist id="vars">
 <?php foreach ($status_vars as $var) { ?>

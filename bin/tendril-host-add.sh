@@ -20,6 +20,7 @@ pass=$(grep "\[$section\]" -A 100 $config | egrep '^password' | awk '{print $3}'
 
 server=$(echo "$host.$port" | sed 's/\./_/g')
 federated="mysql://${user}:${pass}@${host}:${port}/information_schema"
+federated_mysql="mysql://${user}:${pass}@${host}:${port}/mysql"
 
 cat <<eod
 
@@ -33,6 +34,7 @@ update servers set enabled = 1 where host = '${host}' and port = ${port};
 
 drop event if exists ${server}_schema;
 drop event if exists ${server}_activity;
+drop event if exists ${server}_sampled;
 drop event if exists ${server}_status;
 drop event if exists ${server}_variables;
 drop event if exists ${server}_usage;
@@ -334,6 +336,31 @@ CREATE TABLE ${server}_master_status
 ENGINE=CONNECT CONNECTION='${federated}'
   TABLE_TYPE=MYSQL SRCDEF='SHOW MASTER STATUS';
 
+drop table if exists ${server}_general_log_sampled;
+CREATE TABLE ${server}_general_log_sampled (
+  event_time timestamp(6) NOT NULL,
+  user_host mediumtext NOT NULL,
+  thread_id int(11) NOT NULL,
+  server_id int(10) unsigned NOT NULL,
+  command_type varchar(64) NOT NULL,
+  argument mediumtext NOT NULL
+) ENGINE=FEDERATED CONNECTION='${federated_mysql}/general_log' DEFAULT CHARSET=utf8;
+
+drop table if exists ${server}_slow_log_sampled;
+CREATE TABLE ${server}_slow_log_sampled (
+  start_time timestamp(6) NOT NULL,
+  user_host mediumtext NOT NULL,
+  query_time time(6) NOT NULL,
+  lock_time time(6) NOT NULL,
+  rows_sent int(11) NOT NULL,
+  rows_examined int(11) NOT NULL,
+  db varchar(512) NOT NULL,
+  last_insert_id int(11) NOT NULL,
+  insert_id int(11) NOT NULL,
+  server_id int(10) unsigned NOT NULL,
+  sql_text mediumtext NOT NULL
+) ENGINE=FEDERATED CONNECTION='${federated_mysql}/slow_log' DEFAULT CHARSET=utf8;
+
 delimiter ;;
 
 create event ${server}_schema
@@ -565,7 +592,7 @@ create event ${server}_activity
       delete from innodb_trx   where server_id = @server_id;
       delete from innodb_locks where server_id = @server_id;
 
-      insert into processlist  select @server_id, t.* from ${server}_process t;
+      insert into processlist  select @server_id, t.* from ${server}_process t where t.user <> '${user}';
       insert into innodb_trx   select @server_id, t.* from ${server}_innodb_trx t;
       insert into innodb_locks select @server_id, t.* from ${server}_innodb_locks t;
 
@@ -573,7 +600,10 @@ create event ${server}_activity
       insert into innodb_locks_log select now(), l.* from innodb_locks l;
 
       -- mariadb 5.5 bug
-      update processlist set time = 0 where time = 2147483647;
+      update processlist set time = 0 where server_id = @server_id and time = 2147483647;
+
+      select @time_max := max(time) from processlist where server_id = @server_id;
+      select @stamp := now() - interval @time_max+10 second;
 
       insert into processlist_query_log
         (server_id, stamp, id, user, host, db, time, info)
@@ -587,7 +617,6 @@ create event ${server}_activity
           and p.db = q.db
           and p.info = q.info
           and p.time > q.time
-          and q.stamp >= now() - interval p.time second
         where
           p.server_id = @server_id
           and p.command = 'Query'
@@ -604,32 +633,95 @@ create event ${server}_activity
           and p.time > q.time
           and q.stamp > now() - interval p.time second
         set q.time = p.time
-        where
-          q.server_id = @server_id
-          and p.command = 'Query';
+        where q.server_id = @server_id
+          and p.server_id = @server_id
+          and p.command = 'Query'
+          and q.stamp > @stamp;
 
       update processlist_query_log q
-        join processlist p
-          on p.server_id = @server_id
-          and p.id = q.id
-          and p.user = q.user
-          and p.host = q.host
-          and p.db = q.db
-          and p.info = q.info
         join innodb_trx t
           on t.server_id = @server_id
-          and p.id = t.trx_mysql_thread_id
-          and substr(p.info,1,1000) = substr(t.trx_query,1,1000)
+          and q.id = t.trx_mysql_thread_id
+          and substr(q.info,1,1000) = substr(t.trx_query,1,1000)
           and length(t.trx_id) > 0
         set q.trx_id = t.trx_id
         where q.server_id = @server_id
-          and p.command = 'Query';
+          and t.server_id = @server_id
+          and q.trx_id is null
+          and q.stamp > @stamp
+          and t.trx_started > @stamp;
 
       update servers set event_activity = now() where id = @server_id;
 
     end if;
 
     do release_lock('${server}_activity');
+  end ;;
+
+create event ${server}_sampled
+  on schedule every 10 second starts date(now()) + interval floor(rand() * 9) second
+  do begin
+
+    if (get_lock('${server}_sampled', 1) = 0) then
+      signal sqlstate value '45000' set message_text = 'get_lock';
+    end if;
+
+    select @server_id := id, @enabled := enabled from servers where host = '${host}' and port = ${port};
+
+    if (@enabled = 1) then
+
+      create temporary table t1 as
+        select event_time, user_host, thread_id, server_id, command_type, argument
+          from ${server}_general_log_sampled;
+
+      insert into general_log_sampled
+        (server_id, event_time, user_host, thread_id, m_server_id, command_type, argument, checksum)
+          select @server_id, event_time, user_host, thread_id, server_id, command_type, argument, md5(argument)
+            from t1;
+
+      insert into queries (checksum, first_seen, content)
+        select md5(t1.argument), event_time, t1.argument from t1
+          left join queries q on md5(t1.argument) = q.checksum
+            where q.checksum is null and t1.command_type = 'Query'
+              group by t1.argument;
+
+      update queries q
+        join t1 on q.checksum = md5(t1.argument)
+          set last_seen = event_time;
+
+      insert into queries_seen_log (checksum, server_id, stamp)
+        select md5(t1.argument), @server_id, t1.event_time from t1;
+
+      create temporary table t2 as
+        select start_time, user_host, query_time, lock_time, rows_sent, rows_examined,
+            db, last_insert_id, insert_id, server_id, sql_text
+          from ${server}_slow_log_sampled;
+
+      insert into slow_log_sampled
+        (server_id, start_time, user_host, query_time, lock_time, rows_sent, rows_examined,
+            db, last_insert_id, insert_id, m_server_id, sql_text, checksum)
+        select @server_id, start_time, user_host, query_time, lock_time, rows_sent, rows_examined,
+            db, last_insert_id, insert_id, server_id, sql_text, md5(sql_text)
+          from t2;
+
+      insert into queries (checksum, first_seen, content)
+        select md5(t2.sql_text), start_time, t2.sql_text from t2
+          left join queries q on md5(t2.sql_text) = q.checksum
+            where q.checksum is null;
+
+      insert into queries_seen_log (checksum, server_id, stamp)
+        select md5(t2.sql_text), @server_id, t2.start_time from t2;
+
+      update queries q
+        join t2 on q.checksum = md5(t2.sql_text)
+          set last_seen = start_time;
+
+      drop temporary table if exists t1;
+      drop temporary table if exists t2;
+
+    end if;
+
+    do release_lock('${server}_sampled');
   end ;;
 
 create event ${server}_replication
@@ -645,70 +737,163 @@ create event ${server}_replication
     if (@enabled = 1) then
 
       create temporary table t1 as select * from ${server}_master_status;
-      create temporary table t2 like master_status;
-
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'File', File from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Position', Position from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Binlog_Do_DB', Binlog_Do_DB from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Binlog_Ignore_DB', Binlog_Ignore_DB from t1;
-
       delete from master_status where server_id = @server_id;
-      insert into master_status select * from t2;
+
+      insert into master_status (server_id, variable_name, variable_value) select @server_id, 'File', File from t1;
+      insert into master_status (server_id, variable_name, variable_value) select @server_id, 'Position', Position from t1;
+      insert into master_status (server_id, variable_name, variable_value) select @server_id, 'Binlog_Do_DB', Binlog_Do_DB from t1;
+      insert into master_status (server_id, variable_name, variable_value) select @server_id, 'Binlog_Ignore_DB', Binlog_Ignore_DB from t1;
 
       drop temporary table if exists t1;
-      drop temporary table if exists t2;
 
       create temporary table t1 as select * from ${server}_slave_status;
-      create temporary table t2 like slave_status;
-
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Slave_IO_State', Slave_IO_State from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Master_Host', Master_Host from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Master_User', Master_User from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Master_Port', Master_Port from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Connect_Retry', Connect_Retry from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Master_Log_File', Master_Log_File from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Read_Master_Log_Pos', Read_Master_Log_Pos from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Relay_Log_File', Relay_Log_File from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Relay_Log_Pos', Relay_Log_Pos from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Relay_Master_Log_File', Relay_Master_Log_File from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Slave_IO_Running', Slave_IO_Running from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Slave_SQL_Running', Slave_SQL_Running from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Do_DB', Replicate_Do_DB from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Ignore_DB', Replicate_Ignore_DB from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Do_Table', Replicate_Do_Table from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Ignore_Table', Replicate_Ignore_Table from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Wild_Do_Table', Replicate_Wild_Do_Table from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Wild_Ignore_Table', Replicate_Wild_Ignore_Table from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Last_Errno', Last_Errno from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Last_Error', Last_Error from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Skip_Counter', Skip_Counter from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Exec_Master_Log_Pos', Exec_Master_Log_Pos from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Relay_Log_Space', Relay_Log_Space from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Until_Condition', Until_Condition from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Until_Log_File', Until_Log_File from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Until_Log_Pos', Until_Log_Pos from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Seconds_Behind_Master', Seconds_Behind_Master from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Last_IO_Errno', Last_IO_Errno from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Last_IO_Error', Last_IO_Error from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Last_SQL_Errno', Last_SQL_Errno from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Last_SQL_Error', Last_SQL_Error from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Replicate_Ignore_Server_Ids', Replicate_Ignore_Server_Ids from t1;
-      insert into t2 (server_id, variable_name, variable_value) select @server_id, 'Master_Server_Id', Master_Server_Id from t1;
-
       delete from slave_status where server_id = @server_id;
-      insert into slave_status select * from t2;
 
-      -- insert ignore into strings (string) select lower(VARIABLE_NAME) from t1;
-      -- INSERT IGNORE for InnoDB without auto-inc holes
-      insert into strings (string)
-        select lower(variable_name) from t2
-          left join strings b on lower(t2.variable_name) = b.string
-          where b.string is null;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Slave_IO_State', Slave_IO_State from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Master_Host', Master_Host from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Master_User', Master_User from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Master_Port', Master_Port from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Connect_Retry', Connect_Retry from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Master_Log_File', Master_Log_File from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Read_Master_Log_Pos', Read_Master_Log_Pos from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Relay_Log_File', Relay_Log_File from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Relay_Log_Pos', Relay_Log_Pos from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Relay_Master_Log_File', Relay_Master_Log_File from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Slave_IO_Running', Slave_IO_Running from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Slave_SQL_Running', Slave_SQL_Running from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Do_DB', Replicate_Do_DB from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Ignore_DB', Replicate_Ignore_DB from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Do_Table', Replicate_Do_Table from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Ignore_Table', Replicate_Ignore_Table from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Wild_Do_Table', Replicate_Wild_Do_Table from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Wild_Ignore_Table', Replicate_Wild_Ignore_Table from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Last_Errno', Last_Errno from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Last_Error', Last_Error from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Skip_Counter', Skip_Counter from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Exec_Master_Log_Pos', Exec_Master_Log_Pos from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Relay_Log_Space', Relay_Log_Space from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Until_Condition', Until_Condition from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Until_Log_File', Until_Log_File from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Until_Log_Pos', Until_Log_Pos from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Seconds_Behind_Master', Seconds_Behind_Master from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Last_IO_Errno', Last_IO_Errno from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Last_IO_Error', Last_IO_Error from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Last_SQL_Errno', Last_SQL_Errno from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Last_SQL_Error', Last_SQL_Error from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Replicate_Ignore_Server_Ids', Replicate_Ignore_Server_Ids from t1;
+      insert into slave_status (server_id, variable_name, variable_value) select @server_id, 'Master_Server_Id', Master_Server_Id from t1;
+
+      insert into strings (string) select lower('Slave_IO_State')
+        from seq_1_to_1 left join strings b on lower('Slave_IO_State') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Master_Host')
+        from seq_1_to_1 left join strings b on lower('Master_Host') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Master_User')
+        from seq_1_to_1 left join strings b on lower('Master_User') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Master_Port')
+        from seq_1_to_1 left join strings b on lower('Master_Port') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Connect_Retry')
+        from seq_1_to_1 left join strings b on lower('Connect_Retry') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Master_Log_File')
+        from seq_1_to_1 left join strings b on lower('Master_Log_File') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Read_Master_Log_Pos')
+        from seq_1_to_1 left join strings b on lower('Read_Master_Log_Pos') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Relay_Log_File')
+        from seq_1_to_1 left join strings b on lower('Relay_Log_File') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Relay_Log_Pos')
+        from seq_1_to_1 left join strings b on lower('Relay_Log_Pos') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Relay_Master_Log_File')
+        from seq_1_to_1 left join strings b on lower('Relay_Master_Log_File') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Slave_IO_Running')
+        from seq_1_to_1 left join strings b on lower('Slave_IO_Running') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Slave_SQL_Running')
+        from seq_1_to_1 left join strings b on lower('Slave_SQL_Running') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Do_DB')
+        from seq_1_to_1 left join strings b on lower('Replicate_Do_DB') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Ignore_DB')
+        from seq_1_to_1 left join strings b on lower('Replicate_Ignore_DB') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Do_Table')
+        from seq_1_to_1 left join strings b on lower('Replicate_Do_Table') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Ignore_Table')
+        from seq_1_to_1 left join strings b on lower('Replicate_Ignore_Table') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Wild_Do_Table')
+        from seq_1_to_1 left join strings b on lower('Replicate_Wild_Do_Table') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Wild_Ignore_Table')
+        from seq_1_to_1 left join strings b on lower('Replicate_Wild_Ignore_Table') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Last_Errno')
+        from seq_1_to_1 left join strings b on lower('Last_Errno') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Last_Error')
+        from seq_1_to_1 left join strings b on lower('Last_Error') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Skip_Counter')
+        from seq_1_to_1 left join strings b on lower('Skip_Counter') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Exec_Master_Log_Pos')
+        from seq_1_to_1 left join strings b on lower('Exec_Master_Log_Pos') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Relay_Log_Space')
+        from seq_1_to_1 left join strings b on lower('Relay_Log_Space') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Until_Condition')
+        from seq_1_to_1 left join strings b on lower('Until_Condition') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Until_Log_File')
+        from seq_1_to_1 left join strings b on lower('Until_Log_File') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Until_Log_Pos')
+        from seq_1_to_1 left join strings b on lower('Until_Log_Pos') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Seconds_Behind_Master')
+        from seq_1_to_1 left join strings b on lower('Seconds_Behind_Master') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Last_IO_Errno')
+        from seq_1_to_1 left join strings b on lower('Last_IO_Errno') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Last_IO_Error')
+        from seq_1_to_1 left join strings b on lower('Last_IO_Error') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Last_SQL_Errno')
+        from seq_1_to_1 left join strings b on lower('Last_SQL_Errno') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Last_SQL_Error')
+        from seq_1_to_1 left join strings b on lower('Last_SQL_Error') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Replicate_Ignore_Server_Ids')
+        from seq_1_to_1 left join strings b on lower('Replicate_Ignore_Server_Ids') = b.string
+        where b.string is null;
+      insert into strings (string) select lower('Master_Server_Id')
+        from seq_1_to_1 left join strings b on lower('Master_Server_Id') = b.string
+        where b.string is null;
 
       insert into slave_status_log (server_id, stamp, name_id, value)
         select @server_id, now(), n.id, gs.variable_value from slave_status gs
           join strings n on gs.variable_name = n.string
             where gs.server_id = @server_id and gs.variable_value regexp '^[0-9\.]+';
+
+      update servers s
+        set
+          m_server_id   = (select variable_value from global_variables where server_id = @server_id and variable_name = 'server_id'),
+          m_master_id   = (select variable_value from slave_status     where server_id = @server_id and variable_name = 'Master_Server_Id'),
+          m_master_port = (select variable_value from slave_status     where server_id = @server_id and variable_name = 'Master_Port')
+        where id = @server_id;
 
       drop temporary table if exists t1;
       drop temporary table if exists t2;

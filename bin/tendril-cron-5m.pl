@@ -53,7 +53,7 @@ while (my $row = $servers->fetchrow_hashref())
 				$query =~ s/[(][?,'" ]+?[)]/?LIST?/g;
 
 
-				my $update = $db->prepare("update processlist_query_log set checksum = md5(?) where server_id = ? and id = ? and md5(info) = ?");
+				my $update = $db->prepare("update processlist_query_log set checksum = md5(?) where server_id = ? and id = ? and checksum is null and md5(info) = ?");
 				my $rs = $update->execute($query, $server_id, $row->{id}, $row->{info_md5});
 				$update->finish();
 

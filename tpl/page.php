@@ -15,25 +15,30 @@
 
 html {
     width: 100%;
+    background: #eee;
 }
 
 body {
     font-family: "Droid Sans", Arial;
-    width: 98%;
-    padding: 0 1%;
+    width: 100%;
+    padding: 0;
     min-width: 1024px;
-    margin: 0 auto;
+    margin: 0;
+    background: #eee;
 }
 
 body > header {
     padding: 0.5em 1em;
-    background: #eee;
-    border: 1px solid #ccc;
-    border-top: 0;
+    background: #000;
+    color: #fff;
+}
+
+body > header a {
+    color: #fff;
 }
 
 body > section {
-    padding: 1em 0;
+    padding: 1em;
 }
 
 body > section:first-child {
@@ -53,6 +58,7 @@ body > section > p {
 }
 
 body > section > table {
+    background: #fff;
     border: 1px solid #ccc;
     border-right: 0;
     border-left: 0;
@@ -62,7 +68,7 @@ body > section > table {
 body > section > table th {
     font-weight: normal;
     text-align: left;
-    background: #eee;
+    font-weight: bold;
     border-bottom: 1px solid #ccc;
 }
 
@@ -121,6 +127,11 @@ h1 {
     font-size: 150%;
 }
 
+h1 img {
+    height: 1.25em;
+    vertical-align: text-bottom;
+}
+
 h2 {
     font-size: 125%;
 }
@@ -129,18 +140,41 @@ h3 {
     font-size: 112%;
 }
 
-header h1 {
+body > header h1 {
     margin: 0;
 }
 
-header h1 a {
+body > header h1 a {
     text-decoration: none;
 }
 
-header nav {
+body > header nav {
     display: block;
     float: right;
-    font-size: 125%;
+    font-size: 150%;
+}
+
+body > header nav a {
+    color: #ddd;
+}
+
+body > header nav a:after {
+    color: #888;
+    content: ' • ';
+    margin: 0 0.25em;
+}
+
+body > header nav a:first-child:before {
+    content: '';
+}
+
+body > header nav a:last-child:after {
+    content: '';
+    margin: 0 0;
+}
+
+body > header nav a:hover {
+    color: #fff;
 }
 
 textarea {
@@ -227,7 +261,8 @@ body > section > form.search table tr:last-child td {
     </nav>
 
     <h1>
-        <a href="/">tendril</a>
+        <img src="/logo.svg" />
+        <a href="/">Tendril</a>
     </h1>
 
 </header>
