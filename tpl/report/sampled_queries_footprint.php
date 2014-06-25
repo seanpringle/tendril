@@ -11,16 +11,34 @@
     border: 1px solid #999;
     margin-bottom: 1em;
 }
+body > section form.search input[name=footprint] {
+    width: 20em;
+}
 </style>
 
 <form method="GET" class="search">
-    <strong>footprint</strong>
-    <input type="text" style="width: 15em;" name="footprint" value="<?= escape(pkg()->request('footprint')) ?>" placeholder="md5" />
-    <strong>host</strong>
-    <input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
-    <strong>hours</strong>
-    <input style="width: 2em" type="text" name="hours" value="<?= escape(pkg()->request('hours')) ?>" placeholder="#" />
-    <input type="submit" value="Search" />
+    <table cellspacing="0" cellpadding="0">
+    <tr>
+        <th>Footprint</th>
+        <th>Host</th>
+        <th>Hours</th>
+        <th></th>
+    </tr>
+    <tr>
+        <td>
+            <input type="text" name="footprint" value="<?= escape(pkg()->request('footprint')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input style="width: 2em" type="text" name="hours" value="<?= escape(pkg()->request('hours')) ?>" placeholder="#" />
+        </td>
+        <td>
+            <input type="submit" value="Search" />
+        </td>
+    </tr>
+    </table>
 </form>
 
 <script type="text/javascript">

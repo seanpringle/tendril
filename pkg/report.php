@@ -1141,7 +1141,11 @@ class Package_Report extends Package
             $search = sql::query('tendril.queries_seen_log qsl')
                 ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
                 ->join('tendril.queries q', 'qsl.checksum = q.checksum')
-                ->fields(array('qsl.*', 'q.content'))
+                ->fields(array(
+                    'qsl.*',
+                    'q.content',
+                    'qsl.server_id as sample_server_id',
+                ))
                 ->where_eq('q.footprint', $footprint)
                 ->where('qsl.stamp > now() - interval '.$hours.' hour')
                 ->order('qsl.stamp', 'desc')
@@ -1153,11 +1157,6 @@ class Package_Report extends Package
                     ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                     ->fetch_field('id');
                 $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
-            }
-
-            if ($query)
-            {
-                $search->where_regexp('q.content', $query, $qmode != 'ne');
             }
 
             $rows = $search->fetch_all();
@@ -1172,8 +1171,9 @@ class Package_Report extends Package
 
         $search = sql::query('queries_seen_log qsl')
             ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
+            ->join('tendril.queries q', 'qsl.checksum = q.checksum')
             ->fields('count(qsl.server_id)')
-            ->where_eq('qsl.checksum', $checksum)
+            ->where_eq('q.footprint', $footprint)
             ->where('qsl.stamp between x - interval '.$period.' and x')
             ->where('qsl.stamp > now() - interval '.($hours+1).' hour');
 
@@ -1183,11 +1183,6 @@ class Package_Report extends Package
                 ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                 ->fetch_field('id');
             $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
-        }
-
-        if ($query)
-        {
-            $search->where_regexp('q.content', $query, $qmode != 'ne');
         }
 
         $fields = array(

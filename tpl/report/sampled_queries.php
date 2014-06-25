@@ -137,8 +137,9 @@ foreach ($rows as $row)
             'title' => 'Hits',
             'class' => 'right',
             'html' => tag('a', array(
-                'href' => sprintf('/report/sampled_queries_footprint?footprint=%s&hours=%s',
+                'href' => sprintf('/report/sampled_queries_footprint?footprint=%s&host=%s&hours=%s',
                     $row['footprint'],
+                    urlencode(pkg()->request('host')),
                     urlencode(pkg()->request('hours'))
                 ),
                 'html' => $row['hits'],
