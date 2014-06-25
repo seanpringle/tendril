@@ -1053,7 +1053,7 @@ class Package_Report extends Package
             ))
             ->where_not_null('q.footprint')
             ->where('qsl.stamp > now() - interval '.$hours.' hour')
-            ->group('qsl.checksum')
+            ->group('q.footprint')
             ->order('hits', 'desc')
             ->limit(50);
 
