@@ -82,6 +82,6 @@ function drawChart()
 
 </script>
 
-<div id="charts">
+<div id="charts" class="panel">
 </div>
 

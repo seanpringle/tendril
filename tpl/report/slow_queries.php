@@ -11,10 +11,6 @@
 	font-size: smaller;
 	color: #999;
 }
-#chart {
-	border: 1px solid #ccc;
-	margin-bottom: 1em;
-}
 </style>
 
 <form method="GET" class="search">
@@ -98,7 +94,7 @@ function drawChart()
 
 </script>
 
-<div id="chart"></div>
+<div id="chart" class="panel"></div>
 
 <table id="slow-queries">
 

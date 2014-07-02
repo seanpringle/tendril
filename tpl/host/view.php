@@ -18,6 +18,9 @@ table.host-vars {
     background: #eee;
     margin-right: 1%;
     border: 1px solid #ccc;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
 }
 
 #graphs-blurb {
@@ -98,7 +101,7 @@ include 'table.php';
                 var options = {
                     'title'  : title + ' -- ' + description,
                     'width'  : '50%',
-                    'height' : 300,
+                    'height' : '100%',
                     'legend' : { 'position': 'top' },
                     'chartArea' : { 'width': '85%', 'left': '12%' }
                 };

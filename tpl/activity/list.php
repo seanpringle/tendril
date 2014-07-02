@@ -20,7 +20,7 @@
 
 </style>
 
-<form id="activity-hide" method="GET" class="search">
+<form id="activity-hide" method="GET" class="search merge-down">
     <table cellspacing="0" cellpadding="0">
     <tr>
         <td>

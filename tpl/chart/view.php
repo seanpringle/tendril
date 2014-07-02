@@ -2,10 +2,14 @@
 <style type="text/css">
 #chart {
     border: 1px solid #ccc;
+    min-height: 600px;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
 }
 </style>
 
-<form method="GET" class="search">
+<form method="GET" class="search merge-down">
     <table cellspacing="0" cellpadding="0">
     <tr>
         <th>Host</th>
@@ -82,9 +86,9 @@ function drawChart()
 
 </script>
 
-<div id="chart"></div>
-
 <?php } ?>
+
+<div id="chart"></div>
 
 <datalist id="vars">
 <?php foreach ($status_vars as $var) { ?>

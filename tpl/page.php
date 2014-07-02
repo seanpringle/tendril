@@ -24,84 +24,7 @@ body {
     min-width: 1024px;
     margin: 0;
     background: #eee;
-}
-
-body > header {
-    padding: 0.5em 1em;
-    background: #000;
-    color: #fff;
-}
-
-body > header a {
-    color: #fff;
-}
-
-body > section {
-    padding: 1em;
-}
-
-body > section:first-child {
-    margin-top: 0;
-}
-
-body > footer {
-    padding: 1em;
-}
-
-body > section > form {
-    margin: 0 0 0.75em 0;
-}
-
-body > section > p {
-    margin: 0 0 0.75em 0;
-}
-
-body > section > table {
-    background: #fff;
-    border: 1px solid #ccc;
-    border-right: 0;
-    border-left: 0;
-    margin: 0 0 0.75em 0;
-}
-
-body > section > table th {
-    font-weight: normal;
-    text-align: left;
-    font-weight: bold;
-    border-bottom: 1px solid #ccc;
-}
-
-body > section > table td {
-    border-bottom: 1px solid #eee;
-}
-
-body > section > table th:first-child {
-    border-left: 1px solid #ccc;
-}
-
-body > section > table td:first-child {
-    border-left: 1px solid #ccc;
-}
-
-body > section > table th:last-child {
-    border-right: 1px solid #ccc;
-}
-
-body > section > table td:last-child {
-    border-right: 1px solid #ccc;
-}
-
-body > section > table tr:last-child td {
-    border-bottom: 0;
-}
-
-body > section > table th,
-body > section > table td {
-    padding: 0.25em 0.5em;
-}
-
-body > section > *:first-child {
-    margin-top: 0;
+    -webkit-text-size-adjust: none;
 }
 
 nav a {
@@ -139,43 +62,6 @@ h3 {
     font-size: 112%;
 }
 
-body > header h1 {
-    margin: 0;
-}
-
-body > header h1 a {
-    text-decoration: none;
-}
-
-body > header nav {
-    display: block;
-    float: right;
-    font-size: 150%;
-}
-
-body > header nav a {
-    color: #ddd;
-}
-
-body > header nav a:after {
-    color: #888;
-    content: ' • ';
-    margin: 0 0.25em;
-}
-
-body > header nav a:first-child:before {
-    content: '';
-}
-
-body > header nav a:last-child:after {
-    content: '';
-    margin: 0 0;
-}
-
-body > header nav a:hover {
-    color: #fff;
-}
-
 textarea {
     -webkit-box-sizing: border-box;
     -moz-box-sizing: border-box;
@@ -183,25 +69,115 @@ textarea {
     width: 100%;
 }
 
-body > section > p.note {
-    border: 1px solid #ccc;
-    padding: 0.35em 0.5em;
-    background: ivory;
+#page-header {
+    padding: 0.5em 1em;
+    background: #000;
+    color: #fff;
 }
 
-body > section > form.search {
-    border: 1px solid #ccc;
+#page-header a {
+    color: #fff;
+}
+
+#page-header h1 {
+    margin: 0;
+}
+
+#page-header h1 a {
+    text-decoration: none;
+}
+
+#page-header nav {
+    display: block;
+    float: right;
+    font-size: 150%;
+}
+
+#page-header nav a {
+    color: #ddd;
+}
+
+#page-header nav a:after {
+    color: #888;
+    content: ' • ';
+    margin: 0 0.25em;
+}
+
+#page-header nav a:first-child:before {
+    content: '';
+}
+
+#page-header nav a:last-child:after {
+    content: '';
+    margin: 0 0;
+}
+
+#page-header nav a:hover {
+    color: #fff;
+}
+
+#page-content {
+    padding: 1em;
+}
+
+#page-content:first-child {
+    margin-top: 0;
+}
+
+#page-content > form {
+    background: white;
+    margin: 0 0 0.75em 0;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+#page-content > .panel {
+    background: white;
+    margin: 0 0 0.75em 0;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+#page-content > .note {
+    background: ivory;
+    margin: 0 0 0.75em 0;
+    border: 1px solid rgba(0,0,0,0.2);
+    padding: 0.35em 0.5em;
+}
+
+#page-content > table {
+    background: white;
+    margin: 0 0 0.75em 0;
+    border: 1px solid rgba(0,0,0,0.2);
+}
+
+#page-content > table th {
+    font-weight: normal;
+    text-align: left;
+    font-weight: bold;
+    border-bottom: 1px solid rgba(0,0,0,0.2);
+}
+
+#page-content > table td {
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+#page-content > table tr:last-child td {
+    border-bottom: 0;
+}
+
+#page-content > table th,
+#page-content > table td {
+    padding: 0.25em 0.5em;
+}
+
+#page-content > form.search {
     background: aliceblue;
 }
 
-body > section form.search input[type=text] {
+#page-content > form.search input[type=text] {
     width: 10em;
 }
 
-body > section > form.search table {
-}
-
-body > section > form.search table tr th {
+#page-content > form.search table tr th {
     font-weight: normal;
     text-align: left;
     padding: 0.5em 0.25em 0 0;
@@ -210,37 +186,50 @@ body > section > form.search table tr th {
     font-size: smaller;
 }
 
-body > section > form.search table tr th:first-child {
+#page-content > form.search table tr th:first-child {
     padding-left: 0.6em;
 }
 
-body > section > form.search table tr th:last-child {
+#page-content > form.search table tr th:last-child {
     padding-right: 0.6em;
 }
 
-body > section > form.search table tr td {
+#page-content > form.search table tr td {
     font-weight: normal;
     text-align: left;
     padding: 0.25em 0.25em 0.25em 0;
     white-space: nowrap;
 }
 
-body > section > form.search table tr td input[type=text] {
+#page-content > form.search table tr td input[type=text] {
     display: inline-block;
     margin-left: 0;
 }
 
-body > section > form.search table tr td:first-child {
+#page-content > form.search table tr td:first-child {
     padding-left: 0.35em;
 }
 
-body > section > form.search table tr td:last-child {
+#page-content > form.search table tr td:last-child {
     padding-right: 0.35em;
     width: 100%;
 }
 
-body > section > form.search table tr:last-child td {
+#page-content > form.search table tr:last-child td {
     padding-bottom: 0.5em;
+}
+
+#page-content > *:first-child {
+    margin-top: 0;
+}
+
+#page-content > .merge-down {
+    margin-bottom: 0;
+    border-bottom: 0;
+}
+
+#page-footer {
+    padding: 1em;
 }
 
 </style>
@@ -249,7 +238,7 @@ body > section > form.search table tr:last-child td {
 
 <body>
 
-<header>
+<header id="page-header">
 
     <nav>
         <a href="/host">Hosts</a>
@@ -266,13 +255,13 @@ body > section > form.search table tr:last-child td {
 
 </header>
 
-<section role="main">
+<section role="main" id="page-content">
 
 <?= pkg()->page() ?>
 
 </section>
 
-<footer>
+<footer id="page-footer">
 
 </footer>
 
