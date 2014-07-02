@@ -446,7 +446,10 @@ class Package_Report extends Package
 
             if ($host)
             {
-                $search->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host));
+                $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                    ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
+                    ->fetch_field('id');
+                $search->where_in('srv.id', $host_ids ? $host_ids: array(0));
             }
 
             if ($schema)

@@ -235,7 +235,7 @@ class Host_Chart_24hour
 
     public function description()
     {
-        return '24h / 10m';
+        return '24h / 5m';
     }
 
     public function fields()
@@ -256,18 +256,18 @@ class Host_Chart_24hour
             ->where_in('string', map('strtolower', $this->names))
             ->fetch_pair('string', 'id');
 
-        $inner = sql::query('seq_1_to_143 s')
-            ->fields('now() - interval seq * 10 minute as x')
+        $inner = sql::query('seq_1_to_287 s')
+            ->fields('now() - interval seq * 5 minute as x')
             ->left_join('tendril.global_status_log gsl',
                 sprintf('gsl.server_id = %d and gsl.stamp > now() - interval 24 hour', $server_id))
             ->where_in('gsl.name_id', $name_ids)
             ->where_between('gsl.stamp',
-                sql::expr('now() - interval seq * 10 minute - interval 10 minute'),
-                sql::expr('now() - interval seq * 10 minute'))
+                sql::expr('now() - interval seq * 5 minute - interval 5 minute'),
+                sql::expr('now() - interval seq * 5 minute'))
             ->group('x');
 
         $outer = sql::query()
-            ->from('(select now() - interval seq * 10 minute as x from seq_1_to_143)', 'o')
+            ->from('(select now() - interval seq * 5 minute as x from seq_1_to_143)', 'o')
             ->cache(sql::MEMCACHE, 300)
             ->fields('o.x')
             ->order('x');

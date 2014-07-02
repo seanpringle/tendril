@@ -1,13 +1,30 @@
 <form method="GET" class="search">
-	<strong>host</strong>
-	<input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
-	<strong>schema</strong>
-	<input type="text" name="schema" value="<?= escape(pkg()->request('schema')) ?>" placeholder="regex" />
-	<strong>table</strong>
-	<input type="text" name="table" value="<?= escape(pkg()->request('table')) ?>" placeholder="name" />
-	<strong>missing column</strong>
-	<input type="text" name="column" value="<?= escape(pkg()->request('column')) ?>" placeholder="name" />
-	<input type="submit" value="Search" />
+    <table cellspacing="0" cellpadding="0">
+    <tr>
+        <th>Host</th>
+        <th>Schema</th>
+        <th>Table</th>
+        <th>Missing Column</th>
+        <th></th>
+    </tr>
+    <tr>
+        <td>
+            <input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="text" name="schema" value="<?= escape(pkg()->request('schema')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="text" name="table" value="<?= escape(pkg()->request('table')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="text" name="column" value="<?= escape(pkg()->request('column')) ?>" placeholder="regex" />
+        </td>
+        <td>
+            <input type="submit" value="Search" />
+        </td>
+    </tr>
+    </table>
 </form>
 
 <table>

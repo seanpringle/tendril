@@ -34,8 +34,10 @@ update servers set enabled = 1 where host = '${host}' and port = ${port};
 
 drop event if exists ${server}_schema;
 drop event if exists ${server}_activity;
+drop event if exists ${server}_activity_purge;
 drop event if exists ${server}_sampled;
 drop event if exists ${server}_status;
+drop event if exists ${server}_status_purge;
 drop event if exists ${server}_variables;
 drop event if exists ${server}_usage;
 drop event if exists ${server}_privileges;
@@ -679,11 +681,10 @@ create event ${server}_sampled
           select @server_id, event_time, user_host, thread_id, server_id, command_type, argument, md5(argument)
             from t1;
 
-      insert into queries (checksum, first_seen, content)
-        select md5(t1.argument), event_time, t1.argument from t1
-          left join queries q on md5(t1.argument) = q.checksum
-            where q.checksum is null and t1.command_type = 'Query'
-              group by t1.argument;
+      insert ignore into queries (checksum, first_seen, content)
+        select md5(t1.argument), min(event_time), t1.argument from t1
+          where t1.command_type = 'Query'
+            group by t1.argument;
 
       update queries q
         join t1 on q.checksum = md5(t1.argument)
@@ -704,10 +705,9 @@ create event ${server}_sampled
             db, last_insert_id, insert_id, server_id, sql_text, md5(sql_text)
           from t2;
 
-      insert into queries (checksum, first_seen, content)
-        select md5(t2.sql_text), start_time, t2.sql_text from t2
-          left join queries q on md5(t2.sql_text) = q.checksum
-            where q.checksum is null;
+      insert ignore into queries (checksum, first_seen, content)
+        select md5(t2.sql_text), min(start_time), t2.sql_text from t2
+          group by t2.sql_text;
 
       insert into queries_seen_log (checksum, server_id, stamp)
         select md5(t2.sql_text), @server_id, t2.start_time from t2;
