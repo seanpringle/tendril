@@ -1,22 +1,36 @@
 
 delimiter ;;
 
-drop event if exists tendril_purge_queries_seen_log;;
-create event tendril_purge_queries_seen_log
-    on schedule every 1 hour starts date(now()) + interval 8 minute
+drop event if exists tendril_partition_add;;
+create event tendril_partition_add
+    on schedule every 10 minute starts date(now())
     do begin
 
-        select @days := to_days(now() - interval (p.days+1) day)
-            from purge_schedule p where p.table_name = 'queries_seen_log';
+        set @days  := to_days(now())+1;
+        set @table := 'none';
 
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'queries_seen_log'
-                and partition_name = concat('p',@days);
+        select @table := t.table_name from (
+            select distinct part.table_name
+            from information_schema.partitions part
+            join purge_schedule shed
+                on part.table_name = shed.table_name
+            where part.table_schema = database()
+                and part.table_name like '%log'
+                and part.partition_method = 'RANGE'
+                and lower(part.partition_expression) like 'to_days%'
+        ) t
+        left join information_schema.partitions p
+            on p.table_schema = database()
+            and t.table_name = p.table_name
+            and p.table_name like '%log'
+            and p.partition_name = concat('p',@days)
+        where p.partition_name is null
+        limit 1;
 
-        if (@partition = 1) then
+        if (@table <> 'none') then
 
             set @sql := concat(
-                'alter table queries_seen_log drop partition p',@days
+                'alter table ',@table,' add partition (partition p',@days,' values less than (',(@days+1),'))'
             );
 
             prepare stmt from @sql; execute stmt; deallocate prepare stmt;
@@ -26,21 +40,28 @@ create event tendril_purge_queries_seen_log
         end if;
     end ;;
 
-drop event if exists tendril_extend_queries_seen_log;;
-create event tendril_extend_queries_seen_log
-    on schedule every 1 hour starts date(now()) + interval 7 minute
+drop event if exists tendril_partition_add;;
+create event tendril_partition_add
+    on schedule every 10 minute starts date(now()) + interval 1 minute
     do begin
 
-        set @days := to_days(now())+1;
+        set @table := 'none';
 
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'queries_seen_log'
-                and partition_name = concat('p',@days);
+        select @table := part.table_name
+        from information_schema.partitions part
+        join purge_schedule shed
+            on part.table_name = shed.table_name
+        where part.table_schema = database()
+            and part.table_name like '%log'
+            and part.partition_method = 'RANGE'
+            and lower(part.partition_expression) like 'to_days%'
+            and part.partition_name = concat('p',to_days(now() - interval shed.days day))
+        limit 1;
 
-        if (@partition = 0) then
+        if (@table <> 'none') then
 
             set @sql := concat(
-                'alter table queries_seen_log add partition (partition p',@days,' values less than (',(@days+1),'))'
+                'alter table ',@table,' drop partition p',@days
             );
 
             prepare stmt from @sql; execute stmt; deallocate prepare stmt;
@@ -49,157 +70,6 @@ create event tendril_extend_queries_seen_log
 
         end if;
     end ;;
-
-
-drop event if exists tendril_purge_processlist_query_log;;
-create event tendril_purge_processlist_query_log
-    on schedule every 1 hour starts date(now()) + interval 8 minute
-    do begin
-
-        select @days := to_days(now() - interval (p.days+1) day)
-            from purge_schedule p where p.table_name = 'processlist_query_log';
-
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'processlist_query_log'
-                and partition_name = concat('p',@days);
-
-        if (@partition = 1) then
-
-            set @sql := concat(
-                'alter table processlist_query_log drop partition p',@days
-            );
-
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
-
-            insert into event_log values (now(), @sql);
-
-        end if;
-    end ;;
-
-drop event if exists tendril_extend_processlist_query_log;;
-create event tendril_extend_processlist_query_log
-    on schedule every 1 hour starts date(now()) + interval 7 minute
-    do begin
-
-        set @days := to_days(now())+1;
-
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'processlist_query_log'
-                and partition_name = concat('p',@days);
-
-        if (@partition = 0) then
-
-            set @sql := concat(
-                'alter table processlist_query_log add partition (partition p',@days,' values less than (',(@days+1),'))'
-            );
-
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
-
-            insert into event_log values (now(), @sql);
-
-        end if;
-    end ;;
-
-
-drop event if exists tendril_purge_global_status_log;;
-create event tendril_purge_global_status_log
-    on schedule every 1 hour starts date(now()) + interval 6 minute
-    do begin
-
-        select @days := to_days(now() - interval (p.days+1) day)
-            from purge_schedule p where p.table_name = 'global_status_log';
-
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'global_status_log'
-                and partition_name = concat('p',@days);
-
-        if (@partition = 1) then
-
-            set @sql := concat(
-                'alter table global_status_log drop partition p',@days
-            );
-
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
-
-            insert into event_log values (now(), @sql);
-
-        end if;
-    end ;;
-
-drop event if exists tendril_extend_global_status_log;;
-create event tendril_extend_global_status_log
-    on schedule every 1 hour starts date(now()) + interval 5 minute
-    do begin
-
-        set @days := to_days(now())+1;
-
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'global_status_log'
-                and partition_name = concat('p',@days);
-
-        if (@partition = 0) then
-
-            set @sql := concat(
-                'alter table global_status_log add partition (partition p',@days,' values less than (',(@days+1),'))'
-            );
-
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
-
-            insert into event_log values (now(), @sql);
-
-        end if;
-    end ;;
-
-
-drop event if exists tendril_purge_innodb_trx_log;;
-create event tendril_purge_innodb_trx_log
-    on schedule every 1 hour starts date(now()) + interval 4 minute
-    do begin
-
-        select @days := to_days(now() - interval (p.days+1) day)
-            from purge_schedule p where p.table_name = 'innodb_trx_log';
-
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'innodb_trx_log'
-                and partition_name = concat('p',@days);
-
-        if (@partition = 1) then
-
-            set @sql := concat(
-                'alter table innodb_trx_log drop partition p',@days
-            );
-
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
-
-            insert into event_log values (now(), @sql);
-
-        end if;
-    end ;;
-
-drop event if exists tendril_extend_innodb_trx_log;;
-create event tendril_extend_innodb_trx_log
-    on schedule every 1 hour starts date(now()) + interval 3 minute
-    do begin
-
-        set @days := to_days(now())+1;
-
-        select @partition := count(*) from information_schema.partitions
-            where table_schema = database() and table_name = 'innodb_trx_log'
-                and partition_name = concat('p',@days);
-
-        if (@partition = 0) then
-
-            set @sql := concat(
-                'alter table innodb_trx_log add partition (partition p',@days,' values less than (',(@days+1),'))'
-            );
-
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
-
-            insert into event_log values (now(), @sql);
-
-        end if;
-    end ;;
-
 
 drop event if exists tendril_purge_client_statistics_log;;
 create event tendril_purge_client_statistics_log
@@ -233,23 +103,6 @@ create event tendril_purge_user_statistics_log
         delete from user_statistics_log where stamp < @stamp limit 1000;
     end ;;
 
-drop event if exists tendril_purge_slave_status_log;;
-create event tendril_purge_slave_status_log
-    on schedule every 1 minute starts date(now()) + interval 30 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from slave_status_log where stamp < @stamp limit 1000;
-    end ;;
-
-drop event if exists tendril_purge_innodb_locks_log;;
-create event tendril_purge_innodb_locks_log
-    on schedule every 1 minute starts date(now()) + interval 35 second
-    do begin
-        select @stamp := now() - interval (p.days+1) day from purge_schedule p where p.table_name = 'innodb_locks_log';
-        delete from innodb_locks_log where stamp < @stamp limit 1000;
-    end ;;
-
-
 drop event if exists tendril_purge_general_log_sampled;;
 create event tendril_purge_general_log_sampled
     on schedule every 1 minute starts date(now()) + interval 45 second
@@ -265,14 +118,5 @@ create event tendril_purge_slow_log_sampled
         select @stamp := now() - interval 7 day;
         delete from slow_log_sampled where start_time < @stamp limit 1000;
     end ;;
-
-drop event if exists tendril_purge_queries;;
-create event tendril_purge_queries
-    on schedule every 1 minute starts date(now()) + interval 55 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from queries where last_seen < @stamp limit 1000;
-    end ;;
-
 
 delimiter ;

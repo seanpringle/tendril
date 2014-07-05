@@ -885,7 +885,7 @@ create event ${server}_replication
 
       insert into slave_status_log (server_id, stamp, name_id, value)
         select @server_id, now(), n.id, gs.variable_value from slave_status gs
-          join strings n on gs.variable_name = n.string
+          join strings n on lower(gs.variable_name) = n.string
             where gs.server_id = @server_id and gs.variable_value regexp '^[0-9\.]+';
 
       update servers s
