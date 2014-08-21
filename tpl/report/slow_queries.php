@@ -124,18 +124,24 @@ function drawChart()
 
 <?php
 
-$servers = sql::query('tendril.servers')->fetch_all();
+$host_cache = array();
 
 foreach ($rows as $row)
 {
 	$hosts = array();
+
 	foreach (explode(',', $row['servers']) as $server_id)
 	{
-		$host = new Host(expect($servers, $server_id, 'array', $server_id));
-		$hosts[] = tag('a', array(
-			'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
-			'html' => escape($host->describe()),
-		));
+		if (!isset($host_cache[$server_id]))
+		{
+			$host = new Host($server_id);
+			$host_cache[$server_id] = tag('a', array(
+				'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
+				'html' => escape($host->describe()),
+			));
+		}
+
+		$hosts[] = $host_cache[$server_id];
 	}
 
 	$hosts  = join(', ', $hosts);
@@ -143,10 +149,10 @@ foreach ($rows as $row)
 	$dbs    = str_replace(',', ', ', $row['dbs']);
 	$sample = str_replace(',', ', ', $row['sample']);
 
-	$shost = new Host(expect($servers, $row['sample_server_id'], 'array', $row['sample_server_id']));
+	$shost = new Host($row['sample_server_id']);
 	$sample = sprintf('%s /* %s %s %s %ds */', $sample, $row['checksum'], $shost->describe(), $row['sample_db'], $row['sample_time']);
 
-	if (($ips = find_ipv4($sample)) && ($name = dns_reverse($ips[0])) && $name != $ips[0])
+	if (($ips = find_ipv4($sample)) && ($name = dns_reverse($ips[0], $dns)) && $name != $ips[0])
 	{
 		$sample = sprintf('%s /* %s */', $sample, $name);
 	}

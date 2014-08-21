@@ -587,7 +587,7 @@ class sql
         if ($this->cache === sql::MEMCACHE)
             cache::set($md5, $rows, $this->expire);
 
-        if ($this->cache)
+        if ($this->cache === sql::CACHE)
             self::$_result_cache[$md5] = gzcompress(serialize($rows));
     }
 
@@ -691,6 +691,16 @@ class sql
             return array_shift($row);
         }
         return null;
+    }
+
+    // retrieve all rows and group by $name
+    public function fetch_all_grouped($name)
+    {
+        $rows = $this->fetch_all();
+        $res  = array();
+        foreach ($rows as $key => $row)
+            $res[$row[$name]][] = $row;
+        return $res;
     }
 
     // wrappers to execute the current state as different queries

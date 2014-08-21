@@ -674,6 +674,7 @@ class Package_Report extends Package
 
         $search = sql::query('tendril.servers srv')
             ->fields('srv.id')
+            ->where_eq('srv.enabled', 1)
             ->order('srv.host')
             ->order('srv.port');
 
@@ -834,6 +835,7 @@ class Package_Report extends Package
         $qmode = $this->request('qmode', 'string', 'eq');
 
         $search = sql::query('tendril.processlist_query_log pql')
+            ->cache(sql::MEMCACHE, 300)
             ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
             ->fields(array(
                 'pql.checksum',
@@ -899,6 +901,7 @@ class Package_Report extends Package
         {
             $search = sql::query('processlist_query_log pql')
                 //->left_join('tendril.servers srv', 'pql.server_id = srv.id')
+                ->cache(sql::MEMCACHE, 300)
                 ->fields(array(
                     'now() - interval '.(($i+1)*($hours*3)).' minute as x',
                     'count(distinct concat(pql.server_id,":",pql.id,":",pql.checksum)) as y',

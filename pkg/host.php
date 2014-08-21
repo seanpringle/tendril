@@ -2,6 +2,12 @@
 
 class Package_Host extends Package
 {
+    public function head()
+    {
+        if ($this->action() == 'index')
+            return $this->head_refresh();
+    }
+
     public function process()
     {
         $this->host = null;
@@ -35,7 +41,7 @@ class Package_Host extends Package
         switch ($this->action())
         {
             case 'view':
-                list ($host, $graphs, $variables, $status, $grants, $slave_status, $hosts, $versions, $uptimes, $repsql, $replag, $ram) = $this->data_view();
+                list ($host, $graphs, $hosts, $versions, $uptimes, $repsql, $replag, $ram) = $this->data_view();
                 include ROOT .'tpl/host/view.php';
                 break;
 
@@ -108,18 +114,23 @@ class Package_Host extends Package
             ->fetch_pair('server_id', 'variable_value');
 
         $repsql = sql::query('tendril.slave_status a')
-            ->fields('a.server_id, a.variable_value')
-            ->where_eq('a.variable_name', 'slave_sql_running')
+            ->fields(array(
+                'a.server_id',
+                'group_concat(distinct a.variable_value order by a.variable_value) as variable_value',
+            ))
+            ->where_like('a.variable_name', '%slave_sql_running')
             ->where_in_if('a.server_id', array_keys($hosts))
+            ->group('a.server_id')
             ->fetch_pair('server_id', 'variable_value');
 
         $replag = sql::query('tendril.slave_status a')
             ->join('tendril.slave_status b', 'a.server_id = b.server_id')
-            ->fields('a.server_id, a.variable_value')
-            ->where_eq('a.variable_name', 'seconds_behind_master')
-            ->where_eq('b.variable_name', 'slave_sql_running')
+            ->fields('a.server_id, max(a.variable_value) as variable_value')
+            ->where_like('a.variable_name', '%seconds_behind_master')
+            ->where_like('b.variable_name', '%slave_sql_running')
             ->where_eq('b.variable_value', 'Yes')
             ->where_in_if('a.server_id', array_keys($hosts))
+            ->group('a.server_id')
             ->fetch_pair('server_id', 'variable_value');
 
         $ram = sql::query('tendril.global_variables')
@@ -135,21 +146,6 @@ class Package_Host extends Package
 
     private function data_view()
     {
-        $variables = sql::query('tendril.global_variables')
-            ->join('tendril.servers srv', 'server_id = srv.id')
-            ->where_eq('srv.host', $this->host->name())
-            ->fetch_pair('variable_name', 'variable_value');
-
-        $status = sql::query('tendril.global_status')
-            ->join('tendril.servers srv', 'server_id = srv.id')
-            ->where_eq('srv.host', $this->host->name())
-            ->fetch_pair('variable_name', 'variable_value');
-
-        $slave_status = sql::query('tendril.slave_status')
-            ->join('tendril.servers srv', 'server_id = srv.id')
-            ->where_eq('srv.host', $this->host->name())
-            ->fetch_pair('variable_name', 'variable_value');
-
         $groups = array(
             'Data Traffic' => 'Bytes_received,Bytes_sent',
             'Query Traffic' => 'Connections,Questions,Com_select',
@@ -175,6 +171,19 @@ class Package_Host extends Package
             'Connection Problems' => 'Aborted_clients,Aborted_connects,Access_denied_errors,Com_kill',
         );
 
+        $connections = sql::query('tendril.replication')
+            ->where_eq('server_id', $this->host->id)
+            ->where_null('connection_name', false)
+            ->fields(array(
+                'concat(connection_name,".Seconds_Behind_Master") as name',
+            ))
+            ->fetch_field('name');
+
+        if (count($connections) > 0)
+        {
+            $groups['Replication'] = join(',', $connections);
+        }
+
         $graphs = array();
         foreach ($groups as $title => $group)
         {
@@ -185,19 +194,7 @@ class Package_Host extends Package
             );
         }
 
-        $grants = sql::query('tendril.schema_privileges')
-            ->fields(array(
-                'grantee',
-                'table_schema',
-                'group_concat(privilege_type) as privileges',
-            ))
-            ->join('tendril.servers srv', 'server_id = srv.id')
-            ->where_eq('srv.host', $this->host->name())
-            ->group('grantee')->group('table_schema')
-            ->order('grantee')->order('table_schema')
-            ->fetch_all();
-
-        return array_merge(array( $this->host, $graphs, $variables, $status, $grants, $slave_status ), $this->data_list());
+        return array_merge(array( $this->host, $graphs ), $this->data_list());
     }
 
     private function ajax_chart()

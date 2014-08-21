@@ -16,10 +16,12 @@ delete from servers where id = @server_id;
 
 drop event if exists ${server}_schema;
 drop event if exists ${server}_activity;
+drop event if exists ${server}_sampled;
 drop event if exists ${server}_status;
 drop event if exists ${server}_variables;
 drop event if exists ${server}_usage;
 drop event if exists ${server}_privileges;
+drop event if exists ${server}_replication;
 
 drop table if exists ${server}_client_stats;
 drop table if exists ${server}_col_privs;
@@ -37,5 +39,11 @@ drop table if exists ${server}_tables;
 drop table if exists ${server}_tablenames;
 drop table if exists ${server}_tbl_privs;
 drop table if exists ${server}_user_stats;
+drop table if exists ${server}_general_log_sampled;
+drop table if exists ${server}_innodb_locks;
+drop table if exists ${server}_innodb_trx;
+drop table if exists ${server}_master_status;
+drop table if exists ${server}_slave_status;
+drop table if exists ${server}_slow_log_sampled;
 
 eod
