@@ -58,10 +58,12 @@ class Package_Host extends Package
         $host = $this->request('host');
 
         $hosts = sql::query('tendril.servers h')
-            ->left_join('tendril.servers h2', 'h.m_master_id = h2.m_server_id and h.m_master_port = h2.port')
-            ->left_join('tendril.servers h3', 'h.m_server_id = h3.m_master_id and h.port = h3.m_master_port')
-            ->field('h2.id as master_id')
-            ->field('group_concat(h3.id order by h3.host) as slave_ids')
+            ->left_join('tendril.replication rm', 'h.id = rm.server_id')
+            ->left_join('tendril.servers hm', 'rm.master_id = hm.id')
+            ->left_join('tendril.replication rs', 'h.id = rs.master_id')
+            ->left_join('tendril.servers hs', 'rs.server_id = hs.id')
+            ->field('group_concat(distinct rm.master_id order by hm.host, hm.port) as master_ids')
+            ->field('group_concat(distinct rs.server_id order by hs.host, hs.port) as slave_ids')
             ->field('0 as qps')
             ->field('h.event_activity as contact');
 

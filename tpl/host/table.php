@@ -74,10 +74,9 @@
     <th class="uptime">Up</th>
     <th class="contact" title="last contact">Act.</th>
     <th class="qps">QPS</th>
-    <th class="master">Master</th>
     <th class="repsql">Rep</th>
     <th class="replag">Lag</th>
-    <th class="slaves">Slaves</th>
+    <th class="rep">Tree</th>
 </tr>
 
 <?php
@@ -96,18 +95,25 @@ foreach ($hosts as $row)
 {
     $h = new Host($row);
 
-    $master = '-';
+    $masters = 'n/a';
 
-    if ($h->m_master_id)
+    if ($row['master_ids'])
     {
-        $m = new Host(expect($hosts, $row['master_id'], 'array', $row['master_id']));
-        $master = tag('a', array(
-            'href' => sprintf('/host/view/%s/%d', $m->name(), $m->port),
-            'html' => escape($m->name_short()),
-        ));
+        $masters    = array();
+        $master_ids = explode(',', $row['master_ids']);
+
+        foreach ($master_ids as $master_id)
+        {
+            $s = new Host(expect($hosts, $master_id, 'array', $master_id));
+            $masters[] = tag('a', array(
+                'href' => sprintf('/host/view/%s/%d', $s->name(), $s->port),
+                'html' => escape($s->describe()),
+            ));
+        }
+        $masters = join(', ', $masters);
     }
 
-    $slaves = '-';
+    $slaves = 'n/a';
 
     if ($row['slave_ids'])
     {
@@ -184,11 +190,7 @@ foreach ($hosts as $row)
             'html' => escape($row['qps']),
         )),
         tag('td', array(
-            'class' => 'master',
-            'html' => $master,
-        )),
-        tag('td', array(
-            'class' => sprintf('repsql %s', $sql == 'No' ? 'bad': ''),
+            'class' => sprintf('repsql %s', preg_match('/No/', $sql) ? 'bad': ''),
             'html' => $sql,
         )),
         tag('td', array(
@@ -196,13 +198,14 @@ foreach ($hosts as $row)
             'html' => contact($lag),
         )),
         tag('td', array(
-            'class' => 'slaves',
-            'html' => $slaves,
+            'class' => 'rep',
+            'html' => sprintf('masters: %s slaves: %s', $masters, $slaves),
         )),
-
     );
 
-    print tag('tr', str($cells));
+    print tag('tr', array(
+        'html' => str($cells),
+    ));
 }
 
 ?>
