@@ -76,8 +76,8 @@ class Package_Host extends Package
         {
             $hosts->where_or(array(
                 'h.id'  => $this->host->id,
-                'h2.id' => $this->host->id,
-                'h3.id' => $this->host->id,
+                'rm.server_id' => $this->host->id,
+                'rm.master_id' => $this->host->id,
             ));
         }
 
@@ -227,7 +227,7 @@ class Host_Chart_24hour
 
         foreach ($names as $name)
         {
-            if (preg_match('/^(Innodb_(history_list_length|checkpoint.*age|buffer_pool_page.*)|Seconds_Behind_Master)$/', $name))
+            if (preg_match('/^(Innodb_(history_list_length|checkpoint.*age|buffer_pool_page.*)|.*Seconds_Behind_Master)$/', $name))
                 $this->mode = 0;
         }
     }
