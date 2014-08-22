@@ -12,7 +12,13 @@
 
 #charts > div {
     margin-bottom: 3em;
+    white-space: nowrap;
 }
+
+#charts div.lag, #charts div.qps {
+    font-size: smaller;
+}
+
 
 .google-visualization-orgchart-node {
     font-size: 100%;
@@ -24,6 +30,11 @@
 
 .google-visualization-orgchart-node > a {
     text-decoration: none;
+    color: blue;
+}
+
+.google-visualization-orgchart-node > a:visited {
+    color: blue;
 }
 
 .google-visualization-orgchart-node > a.disabled {

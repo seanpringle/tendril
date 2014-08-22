@@ -23,6 +23,14 @@ class Package_Tree extends Package
                 $host->enabled ? 'enabled': 'disabled',
                 $this->replag[$host->id] > 60 ? 'lagging': 'replicating'
             ),
+        ))
+        .tag('div', array(
+            'class' => 'lag',
+            'html'  => sprintf('Lag %d', $this->replag[$host->id]),
+        ))
+        .tag('div', array(
+            'class' => 'qps',
+            'html'  => sprintf('QPS %d', $this->qps[$host->id]),
         ));
 
         return $html;
