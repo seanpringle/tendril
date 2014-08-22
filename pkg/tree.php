@@ -25,13 +25,6 @@ class Package_Tree extends Package
             ),
         ));
 
-        if (!$host->m_master_id)
-        {
-            $html .= tag('div', array(
-                'html' => $host->cluster(),
-            ));
-        }
-
         return $html;
     }
 
@@ -87,7 +80,8 @@ class Package_Tree extends Package
             ->fetch_pair('server_id', 'variable_value');
 
         $repl = sql::query('tendril.servers m')
-            ->join('tendril.servers s', 'm.m_server_id = s.m_master_id')
+            ->join('tendril.replication r', 'm.id = r.master_id')
+            ->join('tendril.servers s', 'r.server_id = s.id')
             ->fields(array(
                 'm.id as master_id',
                 'count(*) as size',
@@ -127,7 +121,10 @@ class Package_Tree extends Package
                 array(
                     array(
                         'v' => $master->describe(),
-                        'f' => $this->node_html($master),
+                        'f' => $this->node_html($master)
+                            .tag('div', array(
+                                'html' => $master->cluster(),
+                            )),
                     ),
                     '',
                 )
