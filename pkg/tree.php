@@ -21,16 +21,16 @@ class Package_Tree extends Package
             'title' => sprintf('%s:%d', $host->name(), $host->port()),
             'class' => sprintf('%s %s',
                 $host->enabled ? 'enabled': 'disabled',
-                $this->replag[$host->id] > 60 ? 'lagging': 'replicating'
+                expect($this->replag, $host->id, 'int', 0) > 60 ? 'lagging': 'replicating'
             ),
         ))
         .tag('div', array(
             'class' => 'lag',
-            'html'  => sprintf('Lag %d', $this->replag[$host->id]),
+            'html'  => sprintf('Lag %d', expect($this->replag, $host->id, 'int', 0)),
         ))
         .tag('div', array(
             'class' => 'qps',
-            'html'  => sprintf('QPS %d', $this->qps[$host->id]),
+            'html'  => sprintf('QPS %d', expect($this->qps, $host->id, 'int', 0)),
         ));
 
         return $html;
