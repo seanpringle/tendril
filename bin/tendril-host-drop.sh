@@ -45,5 +45,6 @@ drop table if exists ${server}_innodb_trx;
 drop table if exists ${server}_master_status;
 drop table if exists ${server}_slave_status;
 drop table if exists ${server}_slow_log_sampled;
+drop table if exists ${server}_partitions;
 
 eod

@@ -129,7 +129,8 @@ class Package_Report extends Package
         $text = preg_replace_callback('/masters/',
             function($match) {
                 $hosts = sql::query('tendril.servers')
-                    ->where_null('m_master_id')
+                    ->where('id in (select master_id from replication)')
+                    ->where('id not in (select server_id from replication)')
                     ->fields('concat(host,":",port) as h')
                     ->fetch_field('h');
                 return sprintf('(%s)', join('|', $hosts));
@@ -140,11 +141,12 @@ class Package_Report extends Package
             function($match) {
                 $mid = sql::query('tendril.servers')
                     ->where_like('host', $match[1].'%')
-                    ->fields('m_server_id')
+                    ->fields('id')
                     ->fetch_value();
-                $hosts = sql::query('tendril.servers')
-                    ->where_eq('m_master_id', $mid)
-                    ->fields('concat(host,":",port) as h')
+                $hosts = sql::query('tendril.replication rep')
+                    ->join('servers srv', 'rep.server_id = srv.id')
+                    ->where_eq('rep.master_id', $mid)
+                    ->fields('concat(srv.host,":",srv.port) as h')
                     ->fetch_field('h');
                 return sprintf('(%s)', join('|', $hosts));
             },
@@ -154,11 +156,12 @@ class Package_Report extends Package
             function($match) {
                 list($mid, $host) = sql::query('tendril.servers')
                     ->where_like('host', $match[1].'%')
-                    ->fields(array('m_server_id', 'concat(host,":",port) as h'))
+                    ->fields(array('id', 'concat(host,":",port) as h'))
                     ->fetch_one_numeric();
-                $hosts = sql::query('tendril.servers')
-                    ->where_eq('m_master_id', $mid)
-                    ->fields('concat(host,":",port) as h')
+                $hosts = sql::query('tendril.replication rep')
+                    ->join('servers srv', 'rep.server_id = srv.id')
+                    ->where_eq('rep.master_id', $mid)
+                    ->fields('concat(srv.host,":",srv.port) as h')
                     ->fetch_field('h');
                 return sprintf('(%s|%s)', $host, join('|', $hosts));
             },
@@ -166,16 +169,52 @@ class Package_Report extends Package
         );
         $text = preg_replace_callback('/slave-per-master/',
             function($match) {
+
                 $masters = sql::query('tendril.servers')
-                    ->where_null('m_master_id')
+                    ->where('id in (select master_id from replication)')
+                    ->where('id not in (select server_id from replication)')
+                    ->fields('id')
                     ->fetch_field('id');
+
+                $slaves = sql::query('tendril.servers')
+                    ->where('id in (select server_id from replication)')
+                    ->where_not_in_if('id', $masters)
+                    ->fields('id')
+                    ->fetch_field('id');
+
+                $qps = sql::query('tendril.global_status_log gsl')
+                    ->fields(array(
+                        'gsl.server_id',
+                        'rep.master_id',
+                        'floor((max(value)-min(value))/(unix_timestamp(max(stamp))-unix_timestamp(min(stamp)))) as qps',
+                    ))
+                    ->join('tendril.strings str', 'gsl.name_id = str.id')
+                    ->join('tendril.replication rep', 'gsl.server_id = rep.server_id')
+                    ->where_eq('str.string', 'questions')
+                    ->where('gsl.stamp > now() - interval 1 hour')
+                    ->where_in_if('rep.server_id', $slaves)
+                    ->where_in_if('rep.master_id', $masters)
+                    ->group('rep.server_id');
+
+                sql::rawquery('drop temporary table if exists qps');
+                sql::rawquery(sprintf('create temporary table qps as %s', $qps->get_select()));
+
+                $slave_ids = sql::query('tendril.servers srv')
+                    ->join('qps', 'srv.id = qps.server_id')
+                    ->group('qps.master_id')
+                    ->fields(array(
+                        'cast(substring_index(group_concat(server_id order by qps desc), ",", 1) as unsigned) as slave_id',
+                    ))
+                    ->fetch_field('slave_id');
+
                 $hosts = sql::query('tendril.servers')
-                    ->where_in('m_master_id', $masters)
+                    ->where_in('id', $slave_ids)
                     ->fields('concat(host,":",port) as h')
                     ->group('h')
                     ->order('h', 'desc')
                     ->fetch_field('h');
-                return sprintf('(%s)', $host, join('|', $hosts));
+
+                return sprintf('(%s)', join('|', $hosts));
             },
             $text
         );

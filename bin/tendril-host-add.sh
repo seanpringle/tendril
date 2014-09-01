@@ -52,36 +52,66 @@ CREATE TABLE ${server}_schemata (
 
 drop table if exists ${server}_tables;
 CREATE TABLE ${server}_tables (
-  TABLE_CATALOG varchar(512) not null default '',
-  TABLE_SCHEMA varchar(64) not null default '',
-  TABLE_NAME varchar(64) not null default '',
-  TABLE_TYPE varchar(64) not null default '',
-  ENGINE varchar(64) default null,
-  VERSION bigint(21) unsigned default null,
-  ROW_FORMAT varchar(10) default null,
-  TABLE_ROWS bigint(21) unsigned default null,
-  AVG_ROW_LENGTH bigint(21) unsigned default null,
-  DATA_LENGTH bigint(21) unsigned default null,
-  MAX_DATA_LENGTH bigint(21) unsigned default null,
-  INDEX_LENGTH bigint(21) unsigned default null,
-  DATA_FREE bigint(21) unsigned default null,
-  AUTO_INCREMENT bigint(21) unsigned default null,
-  CREATE_TIME datetime default null,
-  UPDATE_TIME datetime default null,
-  CHECK_TIME datetime default null,
-  TABLE_COLLATION varchar(32) default null,
-  CHECKSUM bigint(21) unsigned default null,
-  CREATE_OPTIONS varchar(255) default null,
-  TABLE_COMMENT varchar(2048) not null default '',
+  TABLE_CATALOG varchar(512) NOT NULL DEFAULT '',
+  TABLE_SCHEMA varchar(64) NOT NULL DEFAULT '',
+  TABLE_NAME varchar(64) NOT NULL DEFAULT '',
+  TABLE_TYPE varchar(64) NOT NULL DEFAULT '',
+  ENGINE varchar(64) DEFAULT NULL,
+  VERSION bigint(21) unsigned DEFAULT NULL,
+  ROW_FORMAT varchar(10) DEFAULT NULL,
+  TABLE_ROWS bigint(21) unsigned DEFAULT NULL,
+  AVG_ROW_LENGTH bigint(21) unsigned DEFAULT NULL,
+  DATA_LENGTH bigint(21) unsigned DEFAULT NULL,
+  MAX_DATA_LENGTH bigint(21) unsigned DEFAULT NULL,
+  INDEX_LENGTH bigint(21) unsigned DEFAULT NULL,
+  DATA_FREE bigint(21) unsigned DEFAULT NULL,
+  AUTO_INCREMENT bigint(21) unsigned DEFAULT NULL,
+  CREATE_TIME datetime DEFAULT NULL,
+  UPDATE_TIME datetime DEFAULT NULL,
+  CHECK_TIME datetime DEFAULT NULL,
+  TABLE_COLLATION varchar(32) DEFAULT NULL,
+  CHECKSUM bigint(21) unsigned DEFAULT NULL,
+  CREATE_OPTIONS varchar(255) DEFAULT NULL,
+  TABLE_COMMENT varchar(2048) NOT NULL DEFAULT '',
   INDEX (TABLE_SCHEMA, TABLE_NAME)
 ) ENGINE=FEDERATED CONNECTION='${federated}/TABLES' DEFAULT CHARSET=utf8;
 
 drop table if exists ${server}_tablenames;
 CREATE TABLE ${server}_tablenames (
-  TABLE_SCHEMA varchar(64) not null default '',
-  TABLE_NAME varchar(64) not null default '',
+  TABLE_SCHEMA varchar(64) NOT NULL DEFAULT '',
+  TABLE_NAME varchar(64) NOT NULL DEFAULT '',
   INDEX (TABLE_SCHEMA, TABLE_NAME)
 ) ENGINE=FEDERATED CONNECTION='${federated}/TABLES' DEFAULT CHARSET=utf8;
+
+drop table if exists ${server}_partitions;
+CREATE TABLE ${server}_partitions (
+  TABLE_CATALOG varchar(512) NOT NULL DEFAULT '',
+  TABLE_SCHEMA varchar(64) NOT NULL DEFAULT '',
+  TABLE_NAME varchar(64) NOT NULL DEFAULT '',
+  PARTITION_NAME varchar(64) DEFAULT NULL,
+  SUBPARTITION_NAME varchar(64) DEFAULT NULL,
+  PARTITION_ORDINAL_POSITION bigint(21) unsigned DEFAULT NULL,
+  SUBPARTITION_ORDINAL_POSITION bigint(21) unsigned DEFAULT NULL,
+  PARTITION_METHOD varchar(18) DEFAULT NULL,
+  SUBPARTITION_METHOD varchar(12) DEFAULT NULL,
+  PARTITION_EXPRESSION longtext,
+  SUBPARTITION_EXPRESSION longtext,
+  PARTITION_DESCRIPTION longtext,
+  TABLE_ROWS bigint(21) unsigned NOT NULL DEFAULT '0',
+  AVG_ROW_LENGTH bigint(21) unsigned NOT NULL DEFAULT '0',
+  DATA_LENGTH bigint(21) unsigned NOT NULL DEFAULT '0',
+  MAX_DATA_LENGTH bigint(21) unsigned DEFAULT NULL,
+  INDEX_LENGTH bigint(21) unsigned NOT NULL DEFAULT '0',
+  DATA_FREE bigint(21) unsigned NOT NULL DEFAULT '0',
+  CREATE_TIME datetime DEFAULT NULL,
+  UPDATE_TIME datetime DEFAULT NULL,
+  CHECK_TIME datetime DEFAULT NULL,
+  CHECKSUM bigint(21) unsigned DEFAULT NULL,
+  PARTITION_COMMENT varchar(80) NOT NULL DEFAULT '',
+  NODEGROUP varchar(12) NOT NULL DEFAULT '',
+  TABLESPACE_NAME varchar(64) DEFAULT NULL,
+  INDEX (TABLE_SCHEMA, TABLE_NAME, PARTITION_NAME)
+) ENGINE=FEDERATED CONNECTION='${federated}/PARTITIONS' DEFAULT CHARSET=utf8;
 
 drop table if exists ${server}_columns;
 CREATE TABLE ${server}_columns (
@@ -105,7 +135,7 @@ CREATE TABLE ${server}_columns (
   EXTRA varchar(27) NOT NULL DEFAULT '',
   PRIVILEGES varchar(80) NOT NULL DEFAULT '',
   COLUMN_COMMENT varchar(1024) NOT NULL DEFAULT '',
-  INDEX (TABLE_SCHEMA, TABLE_NAME)
+  INDEX (TABLE_SCHEMA, TABLE_NAME, COLUMN_NAME)
 ) ENGINE=FEDERATED CONNECTION='${federated}/COLUMNS' DEFAULT CHARSET=utf8;
 
 drop table if exists ${server}_stats;
@@ -126,7 +156,7 @@ CREATE TABLE ${server}_stats (
   INDEX_TYPE varchar(16) NOT NULL DEFAULT '',
   COMMENT varchar(16) DEFAULT NULL,
   INDEX_COMMENT varchar(1024) NOT NULL DEFAULT '',
-  INDEX (TABLE_SCHEMA, TABLE_NAME)
+  INDEX (TABLE_SCHEMA)
 ) ENGINE=FEDERATED CONNECTION='${federated}/STATISTICS' DEFAULT CHARSET=utf8;
 
 drop table if exists ${server}_triggers;
@@ -372,43 +402,154 @@ create event ${server}_schema
 
     if (@enabled = 1) then
 
-      create temporary table t1 as select * from ${server}_schemata;
+      -- SCHEMATA
+
+      create temporary table t as select * from ${server}_schemata;
       delete from schemata where server_id = @server_id;
-      insert into schemata select @server_id, t1.* from t1;
+      insert into schemata select @server_id, t.* from t;
+      drop temporary table if exists t;
 
-      -- ref lookup for each schema and table name
-      create temporary table t2 select a.* from ${server}_tablenames b
-        straight_join ${server}_tables a force index (TABLE_SCHEMA)
-        on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
-      delete from tables where server_id = @server_id;
-      insert into tables select @server_id, t2.* from t2;
+      begin
 
-      -- ref lookup for each schema and table name
-      create temporary table t3 select a.* from ${server}_tablenames b
-        straight_join ${server}_columns a force index (TABLE_SCHEMA)
-        on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
-      delete from columns where server_id = @server_id;
-      insert into columns select @server_id, t3.* from t3;
+        declare db_done int default 0;
+        declare db_name varchar(100);
 
-      -- ref lookup for each schema and table name
-      create temporary table t4 select a.* from ${server}_tablenames b
-        straight_join ${server}_stats a force index (TABLE_SCHEMA)
-        on b.TABLE_SCHEMA = a.TABLE_SCHEMA and b.TABLE_NAME = a.TABLE_NAME;
-      delete from statistics where server_id = @server_id;
-      insert into statistics select @server_id, t4.* from t4;
+        declare db_names cursor for
+          select schema_name from schemata where server_id = @server_id;
 
-      -- ref lookup for each schema and table name
-      create temporary table t5 select a.* from ${server}_schemata b
-        straight_join ${server}_triggers a force index (TRIGGER_SCHEMA)
-        on b.SCHEMA_NAME = a.TRIGGER_SCHEMA;
-      delete from triggers where server_id = @server_id;
-      insert into triggers select @server_id, t5.* from t5;
+        declare continue handler for not found set db_done = 1;
 
-      drop temporary table if exists t1;
-      drop temporary table if exists t2;
-      drop temporary table if exists t3;
-      drop temporary table if exists t4;
-      drop temporary table if exists t5;
+        set db_done = 0;
+        open db_names;
+
+        repeat fetch db_names into db_name;
+
+          if (db_done = 0 and db_name is not null) then
+
+            create temporary table new_tables as
+              select table_name from ${server}_tablenames where table_schema = db_name;
+
+            begin
+
+              declare tbl_done int default 0;
+              declare tbl_name varchar(100);
+
+              declare tbl_names cursor for
+                select table_name from new_tables;
+
+              declare continue handler for not found set tbl_done = 1;
+
+              set tbl_done = 0;
+              open tbl_names;
+
+              repeat fetch tbl_names into tbl_name;
+
+                if (tbl_done = 0 and tbl_name is not null) then
+
+                  -- TABLES
+
+                  create temporary table new_table as
+                    select * from ${server}_tables where table_schema = db_name and table_name = tbl_name;
+
+                  select @fields := group_concat(column_name) from information_schema.columns
+                    where table_schema = database() and table_name = '${server}_tables';
+
+                  delete from tables where server_id = @server_id and table_schema = db_name and table_name = tbl_name;
+
+                  set @sql := concat(
+                    'insert into tables (server_id, ', @fields, ') select @server_id, ', @fields, ' from new_table'
+                  );
+
+                  prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+
+                  drop temporary table new_table;
+
+                  -- COLUMNS
+
+                  create temporary table new_columns as
+                    select * from ${server}_columns where table_schema = db_name and table_name = tbl_name;
+
+                  select @fields := group_concat(column_name) from information_schema.columns
+                    where table_schema = database() and table_name = '${server}_columns';
+
+                  delete from columns where server_id = @server_id
+                    and table_schema = db_name and table_name = tbl_name;
+
+                  set @sql := concat(
+                    'insert into columns (server_id, ', @fields, ') select @server_id, ', @fields, ' from new_columns'
+                  );
+
+                  prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+
+                  drop temporary table new_columns;
+
+                  -- PARTITIONS
+
+                  create temporary table new_partitions as
+                    select * from ${server}_partitions where table_schema = db_name and table_name = tbl_name;
+
+                  select @fields := group_concat(column_name) from information_schema.columns
+                    where table_schema = database() and table_name = '${server}_partitions';
+
+                  delete from partitions where server_id = @server_id
+                    and table_schema = db_name and table_name = tbl_name;
+
+                  set @sql := concat(
+                    'insert into partitions (server_id, ', @fields, ') select @server_id, ', @fields, ' from new_partitions'
+                  );
+
+                  prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+
+                  drop temporary table new_partitions;
+
+                end if;
+
+                until tbl_done
+              end repeat;
+
+              close tbl_names;
+
+            end;
+
+            -- TRIGGERS
+
+            create temporary table new_triggers as
+              select * from ${server}_triggers where trigger_schema = db_name;
+
+            select @fields := group_concat(column_name) from information_schema.columns
+              where table_schema = database() and table_name = '${server}_triggers';
+
+            delete from triggers where server_id = @server_id and trigger_schema = db_name;
+
+            set @sql := concat(
+              'insert into triggers (server_id, ', @fields, ') select @server_id, ', @fields, ' from new_triggers'
+            );
+
+            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+
+            -- clean up
+
+            delete from tables where server_id = @server_id and table_schema = db_name and table_name not in (
+              select table_name from new_tables
+            );
+
+            delete from triggers where server_id = @server_id and trigger_schema = db_name and trigger_name not in (
+              select trigger_name from new_triggers
+            );
+
+            drop temporary table new_tables;
+            drop temporary table new_triggers;
+
+          end if;
+
+          select sleep(10);
+
+          until db_done
+        end repeat;
+
+        close db_names;
+
+      end;
 
       update servers set event_schema = now() where id = @server_id;
 
@@ -987,9 +1128,9 @@ create event ${server}_replication
           join strings n on lower(gs.variable_name) = n.string
             where gs.server_id = @server_id and gs.variable_value regexp '^[0-9\.]+';
 
-      delete from global_status where server_id = @server_id and variable_name in (
-        select lower(variable_name) from slave_status where server_id = @server_id
-      );
+      delete gs from global_status gs join slave_status ss
+        where gs.variable_name = lower(ss.variable_name)
+          and gs.server_id = @server_id and ss.server_id = @server_id;
 
       insert into global_status select * from slave_status where server_id = @server_id;
 
