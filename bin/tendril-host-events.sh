@@ -6,7 +6,7 @@ section="$2"
 [ "$config"  ] || exit 1
 [ "$section" ] || exit 1
 
-mysql="mysql -h db1044 -P 3306 --skip-column-names tendril"
+mysql="mysql -h db1011 -P 3306 --skip-column-names tendril"
 
 for id in $($mysql -e "select id from servers"); do
 
