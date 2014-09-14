@@ -3,15 +3,14 @@ delimiter ;;
 
 drop event if exists tendril_partition_add;;
 create event tendril_partition_add
-    on schedule every 1 minute starts date(now()) + interval 0 second
+    on schedule every 10 minute starts date(now()) + interval 0 second
     do begin
 
+        declare all_done int default 0;
         declare tomorrow int default 0;
         declare logtable varchar(100) default null;
 
-        set tomorrow := to_days(now())+1;
-
-        set logtable := (
+        declare new_partitions cursor for
             select t.table_name from (
                 select distinct part.table_name
                 from information_schema.partitions part
@@ -26,22 +25,35 @@ create event tendril_partition_add
                 on p.table_schema = database()
                 and t.table_name = p.table_name
                 and p.table_name like '%log'
-                and p.partition_name = concat('p',tomorrow)
-            where p.partition_name is null
-            limit 1
-        );
+                and p.partition_name = concat('p',to_days(now())+1)
+            where p.partition_name is null;
 
-        if (logtable is not null) then
+        declare continue handler for not found set all_done = 1;
 
-            set @sql := concat(
-                'alter table ',logtable,' add partition (partition p',tomorrow,' values less than (',(tomorrow+1),'))'
-            );
+        set all_done = 0;
+        open new_partitions;
 
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+        repeat fetch new_partitions into logtable;
 
-            insert into event_log values (now(), @sql);
+            if (all_done = 0 and logtable is not null) then
 
-        end if;
+                set tomorrow := to_days(now())+1;
+
+                set @sql := concat(
+                    'alter table ',logtable,' add partition (partition p',tomorrow,' values less than (',(tomorrow+1),'))'
+                );
+
+                prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+
+                insert into event_log values (now(), @sql);
+
+            end if;
+
+            until all_done
+        end repeat;
+
+        close new_partitions;
+
     end ;;
 
 delimiter ;
@@ -50,14 +62,15 @@ delimiter ;;
 
 drop event if exists tendril_partition_drop;;
 create event tendril_partition_drop
-    on schedule every 1 minute starts date(now()) + interval 10 second
+    on schedule every 10 minute starts date(now()) + interval 10 second
     do begin
 
+        declare all_done int default 0;
         declare partname varchar(100) default null;
         declare logtable varchar(100) default null;
 
-        set logtable := (
-            select part.table_name
+        declare old_partitions cursor for
+            select part.table_name, part.partition_name
             from information_schema.partitions part
             join purge_schedule shed
                 on part.table_name = shed.table_name
@@ -65,76 +78,34 @@ create event tendril_partition_drop
                 and part.table_name like '%log'
                 and part.partition_method = 'RANGE'
                 and lower(part.partition_expression) like 'to_days%'
-                and part.partition_name = concat('p',to_days(now() - interval shed.days day))
-            limit 1
-        );
+                and part.partition_name regexp '^p[0-9]+$'
+                and cast(substring(part.partition_name,2) as unsigned) <= to_days(now() - interval shed.days day);
 
-        if (logtable is not null) then
+        declare continue handler for not found set all_done = 1;
 
-            set partname := (select concat('p',to_days(now() - interval days day))
-                from purge_schedule shed where table_name = logtable);
+        set all_done = 0;
+        open old_partitions;
 
-            set @sql := concat(
-                'alter table ',logtable,' drop partition ',partname
-            );
+        repeat fetch old_partitions into logtable, partname;
 
-            prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+            if (all_done = 0 and logtable is not null and partname is not null) then
 
-            insert into event_log values (now(), @sql);
+                set @sql := concat(
+                    'alter table ',logtable,' drop partition ',partname
+                );
 
-        end if;
+                prepare stmt from @sql; execute stmt; deallocate prepare stmt;
+
+                insert into event_log values (now(), @sql);
+
+            end if;
+
+            until all_done
+        end repeat;
+
+        close old_partitions;
+
     end ;;
 
 delimiter ;
 
-delimiter ;;
-
-drop event if exists tendril_purge_client_statistics_log;;
-create event tendril_purge_client_statistics_log
-    on schedule every 1 minute starts date(now()) + interval 10 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from client_statistics_log where stamp < @stamp limit 1000;
-    end ;;
-
-drop event if exists tendril_purge_index_statistics_log;;
-create event tendril_purge_index_statistics_log
-    on schedule every 1 minute starts date(now()) + interval 15 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from index_statistics_log where stamp < @stamp limit 1000;
-    end ;;
-
-drop event if exists tendril_purge_table_statistics_log;;
-create event tendril_purge_table_statistics_log
-    on schedule every 1 minute starts date(now()) + interval 20 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from table_statistics_log where stamp < @stamp limit 1000;
-    end ;;
-
-drop event if exists tendril_purge_user_statistics_log;;
-create event tendril_purge_user_statistics_log
-    on schedule every 1 minute starts date(now()) + interval 25 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from user_statistics_log where stamp < @stamp limit 1000;
-    end ;;
-
-drop event if exists tendril_purge_general_log_sampled;;
-create event tendril_purge_general_log_sampled
-    on schedule every 1 minute starts date(now()) + interval 45 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from general_log_sampled where event_time < @stamp limit 1000;
-    end ;;
-
-drop event if exists tendril_purge_slow_log_sampled;;
-create event tendril_purge_slow_log_sampled
-    on schedule every 1 minute starts date(now()) + interval 50 second
-    do begin
-        select @stamp := now() - interval 7 day;
-        delete from slow_log_sampled where start_time < @stamp limit 1000;
-    end ;;
-
-delimiter ;

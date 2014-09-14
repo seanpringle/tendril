@@ -15,7 +15,7 @@
     white-space: nowrap;
 }
 
-#charts div.lag, #charts div.qps {
+#charts div.lag, #charts div.qps, #charts div.ver {
     font-size: smaller;
 }
 

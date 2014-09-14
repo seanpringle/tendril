@@ -15,6 +15,13 @@ class Package_Tree extends Package
 
     private function node_html($host)
     {
+        $version = expect($this->versions, $host->id, 'str', '-');
+
+        if (preg_match_all('/^([0-9]+.[0-9]+.[0-9]+)/', $version, $matches))
+        {
+            $version = $matches[1][0];
+        }
+
         $html = tag('a', array(
             'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
             'html' => escape($host->name_short()),
@@ -31,6 +38,10 @@ class Package_Tree extends Package
         .tag('div', array(
             'class' => 'qps',
             'html'  => sprintf('QPS %d', expect($this->qps, $host->id, 'int', 0)),
+        ))
+        .tag('div', array(
+            'class' => 'ver',
+            'html'  => sprintf('%s', $version),
         ));
 
         return $html;
