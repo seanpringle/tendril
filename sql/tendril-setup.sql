@@ -19,7 +19,8 @@ create event tendril_partition_add
                 where part.table_schema = database()
                     and part.table_name regexp '(log|sampled)$'
                     and part.table_name in (
-                        select table_name from information_schema.tables where engine in ('InnoDB', 'TokuDB') and table_schema = 'tendril'
+                        select table_name from information_schema.tables
+                            where engine in ('InnoDB', 'TokuDB') and table_schema = 'tendril'
                     )
                     and part.partition_method = 'RANGE'
                     and lower(part.partition_expression) like 'to_days%'
@@ -27,7 +28,7 @@ create event tendril_partition_add
             left join information_schema.partitions p
                 on p.table_schema = database()
                 and t.table_name = p.table_name
-                and p.table_name like '%log'
+                and p.table_name regexp '(log|sampled)$'
                 and p.partition_name = concat('p',to_days(now())+1)
             where p.partition_name is null;
 
