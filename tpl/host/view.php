@@ -41,6 +41,7 @@ include 'table.php';
 
 <nav>
     <a href="/chart?hosts=<?= urlencode($host->m_master_id ? $host->name_short(): sprintf('family:%s', $host->name_short())) ?>&vars=questions&mode=delta">family chart</a>
+    <a href="/report/slow_queries?host=<?= urlencode($host->m_master_id ? $host->name_short(): sprintf('family:%s', $host->name_short())) ?>&hours=1">family slow queries</a>
 </nav>
 
 <h3>
@@ -48,12 +49,9 @@ include 'table.php';
 </h3>
 
 <div id="graphs-blurb">
-    Only a general overview. For more detail see
     <nav style="display: inline-block;">
         <a href="http://ganglia.wikimedia.org/latest/?r=hour&tab=ch&hreg[]=^<?= $host->name_short() ?>">ganglia</a>
-        <a href="https://icinga-admin.wikimedia.org/cgi-bin/icinga/status.cgi?host=<?= $host->name_short() ?>&nostatusheader">icinga</a>
-        <a href="https://ishmael.wikimedia.org/?host=<?= $host->name_short() ?>">slow</a>
-        <a href="https://ishmael.wikimedia.org/sample/?host=<?= $host->name_short() ?>">sampled</a>
+        <a href="https://icinga.wikimedia.org/cgi-bin/icinga/status.cgi?host=<?= $host->name_short() ?>&nostatusheader">icinga</a>
     </nav>
 </div>
 

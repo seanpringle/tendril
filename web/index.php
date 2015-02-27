@@ -1,5 +1,9 @@
 <?php
 
+// router for php -S
+if (preg_match('/\.(?:png|jpg|jpeg|gif|svg)$/', $_SERVER['REQUEST_URI']))
+    return false;
+
 ob_start();
 
 define('ROOT', dirname(dirname(__FILE__)).'/');

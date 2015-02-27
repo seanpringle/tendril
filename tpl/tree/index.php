@@ -1,57 +1,59 @@
 <style>
 
-#charts {
-    background: #fff;
-    border: 1px solid #ccc;
-    padding: 1em;
-}
+    #charts {
+        background: #fff;
+        border: 1px solid #ccc;
+        padding: 1em;
+    }
 
-#charts table {
-    border-collapse: separate !important;
-}
+    #charts table {
+        border-collapse: separate !important;
+    }
 
-#charts > div {
-    margin-bottom: 3em;
-    white-space: nowrap;
-}
+    #charts > div {
+        margin-bottom: 3em;
+        white-space: nowrap;
+    }
 
-#charts div.lag, #charts div.qps, #charts div.ver {
-    font-size: smaller;
-}
+    #charts div.lag, #charts div.qps, #charts div.ver {
+        font-size: smaller;
+    }
 
+    #charts div.lagging {
+        color: red;
+    }
 
-.google-visualization-orgchart-node {
-    font-size: 100%;
-}
+    .google-visualization-orgchart-node {
+        font-size: 100%;
+        box-shadow: 2px 2px 2px #666;
+        border-radius: 5px;
+        padding: 0.5em;
+        background: #eee;
+        border: 1px solid #666;
+    }
 
-.google-visualization-orgchart-node .stats {
-    font-size: 80%;
-}
+    .google-visualization-orgchart-node .stats {
+        font-size: 80%;
+    }
 
-.google-visualization-orgchart-node > a {
-    text-decoration: none;
-    color: blue;
-}
+    .google-visualization-orgchart-node > a {
+        text-decoration: none;
+        color: blue;
+    }
 
-.google-visualization-orgchart-node > a:visited {
-    color: blue;
-}
+    .google-visualization-orgchart-node > a:visited {
+        color: blue;
+    }
 
-.google-visualization-orgchart-node > a.disabled {
-    color: #999;
-}
+    .google-visualization-orgchart-node > a.disabled {
+        color: #999;
+    }
 
-.google-visualization-orgchart-node > a.lagging {
-    color: red;
-}
+    .google-visualization-orgchart-node > a.lagging {
+        color: red;
+    }
 
 </style>
-
-<p class="note" style="text-align: center;">
-    Generated <em>only</em> from the replication state reported by each server.<br>
-    If this doesn't match up with puppet and <a href="http://noc.wikimedia.org/dbtree/">dbtree</a>,
-    immediately do a sanity check!
-</p>
 
 <script type="text/javascript">
 
