@@ -238,7 +238,7 @@ class Dict implements ArrayAccess, Iterator, Serializable
      */
     public function serialize()
     {
-        return json_encode([ $this->_data, $this->_type ]);
+        return json_encode(array($this->_data, $this->_type));
     }
 
     /**
@@ -282,8 +282,8 @@ class Dict implements ArrayAccess, Iterator, Serializable
      */
     public function import($row)
     {
-        $this->_data = [];
-        $this->_type = [];
+        $this->_data = array();
+        $this->_type = array();
         foreach ($row as $key => $val)
             $this->$key = $val;
         return $this;

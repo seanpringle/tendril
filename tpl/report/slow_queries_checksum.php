@@ -36,7 +36,7 @@ function drawChart()
     var data = new google.visualization.DataTable();
 
     var cols = <?php print json_encode($g_cols); ?>;
-    var rows = <?php print json_encode($g_rows); ?>;
+    var rows = <?php print json_encode(map(function ($row) { return $row->export(); }, $g_rows)); ?>;
 
     for (var j in cols)
     {

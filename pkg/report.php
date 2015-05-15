@@ -1242,7 +1242,6 @@ class Package_Report extends Package
             ->order('x')
             ->fetch_all();
 
-
         $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')

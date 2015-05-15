@@ -150,7 +150,7 @@ class Text implements ArrayAccess, Iterator, Serializable
 
     public function match($pattern)
     {
-        $this->matches = [];
+        $this->matches = array();
         return preg_match($pattern, $this->value, $this->matches);
     }
 
@@ -161,14 +161,14 @@ class Text implements ArrayAccess, Iterator, Serializable
 
     public function match_all($pattern)
     {
-        $this->matches = [];
+        $this->matches = array();
         return preg_match_all($pattern, $this->value, $this->matches);
     }
 
     public function split($pattern=null)
     {
         if (!$this->value)
-            return [];
+            return array();
 
         return preg_split($pattern, $this->value);
     }
@@ -176,7 +176,7 @@ class Text implements ArrayAccess, Iterator, Serializable
     public function explode($pattern)
     {
         if (!$this->value)
-            return [];
+            return array();
 
         return explode($pattern, $this->value);
     }

@@ -121,7 +121,7 @@ class Server
 
         while ($node->m_master_id)
         {
-            $node = Host::by_m_server_id($node->m_master_id);
+            $node = self::by_m_server_id($node->m_master_id);
         }
 
         return expect($clusters, $node->ipv4(), 'string', '-');

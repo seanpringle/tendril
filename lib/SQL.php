@@ -118,6 +118,9 @@ class SQL implements Iterator
             $env->get('db_port', 3306),
             $env->get('db_sock', null)
         );
+
+        if (self::$db === false)
+            throw new Exception(mysqli_connect_error(), mysqli_connect_errno());
     }
 
     private static function quote_number($num)

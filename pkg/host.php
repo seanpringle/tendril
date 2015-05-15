@@ -15,7 +15,7 @@ class Package_Host extends Package
         $name = $this->request(0);
         $port = $this->request(1, 'pint', 3306);
 
-        if ($name && $port && ($host = Host::by_name_port($name, $port)) && $host->ok)
+        if ($name && $port && ($host = Server::by_name_port($name, $port)) && $host->ok)
         {
             $this->host = $host;
         }

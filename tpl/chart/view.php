@@ -7,6 +7,9 @@
     -moz-box-sizing: border-box;
     box-sizing: border-box;
 }
+#quick li {
+    margin-bottom: 0.25em;
+}
 </style>
 
 <form method="GET" class="search merge-down">
@@ -20,7 +23,7 @@
     </tr>
     <tr>
         <td>
-            <input type="text" style="width: 20em;" name="hosts" value="<?= escape(pkg()->request('hosts')) ?>" placeholder="regex" />
+            <input list="hints" type="text" style="width: 20em;" name="hosts" value="<?= escape(pkg()->request('hosts')) ?>" placeholder="regex" />
         </td>
         <td>
             <input list="vars" style="width: 20em;" type="text" name="vars" value="<?= escape(pkg()->request('vars')) ?>" placeholder="regex" />
@@ -90,8 +93,24 @@ function drawChart()
 
 <div id="chart"></div>
 
+<ul id="quick">
+    <li>
+        <a href="?hosts=slave-per-master&vars=%5Equestions%24&mode=delta">slave-per-master ^questions$</a>
+    </li>
+    <li>
+        <a href="?hosts=slave-per-master&vars=aborted_%28clients%7Cconnects%29&mode=delta">slave-per-master ^aborted_(clients|connects)</a>
+    </li>
+</ul>
+
 <datalist id="vars">
 <?php foreach ($status_vars as $var) { ?>
 	<option value="<?= escape($var) ?>">
 <?php } ?>
+</datalist>
+
+<datalist id="hints">
+    <option value="masters">
+    <option value="slaves:">
+    <option value="family:">
+    <option value="slave-per-master">
 </datalist>
