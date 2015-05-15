@@ -286,7 +286,8 @@ class Host_Chart_24hour
             if ($this->mode)
             {
                 $inner->field(
-                    sprintf("max(if(name_id = %d,cast(value as unsigned),0)) - min(if(name_id = %d,cast(value as unsigned),0)) as %s",
+                    sprintf("cast(ifnull(max(if(name_id = %d,cast(value as unsigned),0)),0) -"
+                        ." ifnull(min(if(name_id = %d,cast(value as unsigned),null)),0) as unsigned) as %s",
                         $id, $id, 'y'.($i+1)
                     )
                 );
@@ -294,7 +295,7 @@ class Host_Chart_24hour
             else
             {
                 $inner->field(
-                    sprintf("max(if(name_id = %d,cast(value as unsigned),0)) as %s",
+                    sprintf("cast(ifnull(max(if(name_id = %d,cast(value as unsigned),0)),0) as unsigned) as %s",
                         $id, 'y'.($i+1)
                     )
                 );
@@ -386,7 +387,7 @@ class Host_Chart_7day extends Host_Chart_24hour
             $id = $name_ids[strtolower($name)];
 
             $outer->field(
-                sprintf('i.y%d', ($i+1))
+                sprintf('ifnull(i.y%d,0) as y%d', ($i+1), ($i+1))
             );
 
             if ($this->mode)
