@@ -936,7 +936,7 @@ class SQL implements Iterator
     {
         $out = array();
         foreach ($this->fetch_all() as $row)
-            $out[] = $row[is_null($name) ? $row->keys()[0]: $name];
+            $out[] = $row[is_null($name) ? $row->keys()->get(0): $name];
         return $out;
     }
 
@@ -975,7 +975,7 @@ class SQL implements Iterator
             if (!is_null($name))
                 return $row->$name;
 
-            return $row->values()[0];
+            return $row->values()->get(0);
         }
 
         return null;
