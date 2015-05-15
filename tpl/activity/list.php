@@ -71,7 +71,7 @@
 
 foreach ($processlist as $row)
 {
-    $host = new Host($row['server_id']);
+    $host = new Server($row['server_id']);
 
     list ($ip, $port) = explode(':', $row['host']);
 

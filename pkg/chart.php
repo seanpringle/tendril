@@ -8,8 +8,8 @@ class Package_Chart extends Package_Report
     {
         list ($cols, $rows) = $this->data();
 
-        $status_vars = sql::query('tendril.global_status')
-            ->cache(sql::MEMCACHE, 3600)
+        $status_vars = sql('tendril.global_status')
+            ->cache(SQL::MEMCACHE, 3600)
             ->fields('distinct variable_name')
             ->fetch_field('variable_name');
 
@@ -35,19 +35,19 @@ class Package_Chart extends Package_Report
 
             $seq_upper = $hours * round(60/$mins);
 
-            $name_ids = sql::query('tendril.strings')
-                ->cache(sql::MEMCACHE, 300)
+            $name_ids = sql('tendril.strings')
+                ->cache(SQL::MEMCACHE, 300)
                 ->where_regexp('string', $vars)
                 ->fetch_pair('string', 'id');
 
-            $servers = sql::query('tendril.servers srv')
-                ->cache(sql::MEMCACHE, 3600)
+            $servers = sql('tendril.servers srv')
+                ->cache(SQL::MEMCACHE, 3600)
                 ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                 ->limit(10)
                 ->fields(array('host', 'port', 'id'))
                 ->fetch_all('id');
 
-            $inner = sql::query('seq_1_to_'.$seq_upper.' s')
+            $inner = sql('seq_1_to_'.$seq_upper.' s')
                 ->fields('now() - interval seq * '.$mins.' minute as x')
                 ->left_join('tendril.global_status_log gsl',
                     sprintf('gsl.stamp > now() - interval '.$hours.' hour'))
@@ -58,12 +58,11 @@ class Package_Chart extends Package_Report
                     sql::expr('now() - interval seq * '.$mins.' minute'))
                 ->group('x');
 
-            $outer = sql::query()
+            $outer = sql()
                 ->from('(select now() - interval seq * '.$mins.' minute as x from seq_1_to_'.$seq_upper.')', 'o')
-                ->cache(sql::MEMCACHE, $mins*60)
+                ->cache(SQL::MEMCACHE, $mins*60)
                 ->fields('o.x')
                 ->order('x');
-
 
             $i = 0;
             foreach ($servers as $server_id => $server)
@@ -106,6 +105,9 @@ class Package_Chart extends Package_Report
                 sprintf('(%s) as i', $inner->get_select()),
                 'o.x = i.x')
             ->fetch_all();
+
+            foreach ($rows as $i => $row)
+                $rows[$i] = $row->export();
         }
 
         return array( $cols, $rows );

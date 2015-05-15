@@ -19,7 +19,7 @@ class Package_Activity extends Package
 
     private function data_list()
     {
-        $search = sql::query('tendril.processlist p')
+        $search = sql('tendril.processlist p')
             ->join('tendril.servers s', 'p.server_id = s.id')
             ->fields('p.*, s.host as server')
             ->where_gt('p.time', 30)
@@ -48,7 +48,7 @@ class Package_Activity extends Package
 
         $processlist = $search->fetch_all();
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');

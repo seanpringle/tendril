@@ -109,7 +109,7 @@ foreach ($rows as $row)
     $hosts = array();
     foreach (explode(',', $row['servers']) as $server_id)
     {
-        $host = new Host($server_id);
+        $host = new Server($server_id);
         $hosts[] = tag('a', array(
             'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
             'html' => escape($host->describe()),
@@ -119,7 +119,7 @@ foreach ($rows as $row)
     $hosts  = join(', ', $hosts);
     $sample = str_replace(',', ', ', $row['sample']);
 
-    $shost = new Host($row['sample_server_id']);
+    $shost = new Server($row['sample_server_id']);
     $sample = sprintf('%s /* %s %s */', $sample, $row['footprint'], $shost->describe());
 
     if (($ips = find_ipv4($sample)) && ($name = dns_reverse($ips[0], $dns)) && $name != $ips[0])

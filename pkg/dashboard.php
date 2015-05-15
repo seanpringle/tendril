@@ -19,42 +19,42 @@ class Package_Dashboard extends Package
 
     private function data_index()
     {
-        $hosts_disabled = sql::query('servers')
+        $hosts_disabled = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 0)
             ->fetch_field('id');
 
-        $event_activity = sql::query('servers')
+        $event_activity = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 1)
             ->where('event_activity < now() - interval 1 minute')
             ->fetch_field('id');
 
-        $event_variables = sql::query('servers')
+        $event_variables = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 1)
             ->where('event_variables < now() - interval 10 minute')
             ->fetch_field('id');
 
-        $event_status = sql::query('servers')
+        $event_status = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 1)
             ->where('event_activity < now() - interval 10 minute')
             ->fetch_field('id');
 
-        $event_cron = sql::query('servers')
+        $event_cron = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 1)
             ->where('event_cron < now() - interval 10 minute')
             ->fetch_field('id');
 
-        $event_privileges = sql::query('servers')
+        $event_privileges = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 1)
             ->where('event_privileges < now() - interval 2 day')
             ->fetch_field('id');
 
-        $event_schema = sql::query('servers')
+        $event_schema = sql('servers')
             ->fields('id')
             ->where_eq('enabled', 1)
             ->where('event_schema < now() - interval 2 day')

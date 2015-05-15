@@ -132,7 +132,8 @@
 
 foreach ($rows as $row)
 {
-	$server = new Host($row);
+	$row = $row->export();
+	$server = new Server($row);
 
 	$bphr = expect($row, 'buffer_pool_hit_rate', 'float', 0);
 

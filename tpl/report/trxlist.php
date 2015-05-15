@@ -57,7 +57,7 @@
 
 foreach ($rows as $row)
 {
-    $host = new Host($row['server_id']);
+    $host = new Server($row['server_id']);
 
     $ip     = '';
     $port   = '';

@@ -134,7 +134,7 @@ foreach ($rows as $row)
 	{
 		if (!isset($host_cache[$server_id]))
 		{
-			$host = new Host($server_id);
+			$host = new Server($server_id);
 			$host_cache[$server_id] = tag('a', array(
 				'href' => sprintf('/host/view/%s/%d', $host->name(), $host->port()),
 				'html' => escape($host->describe()),
@@ -149,7 +149,7 @@ foreach ($rows as $row)
 	$dbs    = str_replace(',', ', ', $row['dbs']);
 	$sample = str_replace(',', ', ', $row['sample']);
 
-	$shost = new Host($row['sample_server_id']);
+	$shost = new Server($row['sample_server_id']);
 	$sample = sprintf('%s /* %s %s %s %ds */', $sample, $row['checksum'], $shost->describe(), $row['sample_db'], $row['sample_time']);
 
 	if (($ips = find_ipv4($sample)) && ($name = dns_reverse($ips[0], $dns)) && $name != $ips[0])

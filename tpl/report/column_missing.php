@@ -33,7 +33,7 @@
 
 foreach ($rows as $row)
 {
-	$server = new Host($row);
+	$server = new Server($row);
 
 	$cells = array(
 		tag('td', array(

@@ -86,11 +86,11 @@ class Package_Tree extends Package
 
     public function generate()
     {
-        $this->hosts = sql::query('tendril.servers')
+        $this->hosts = sql('tendril.servers')
             //->where_not_regexp('host', '^(dbstore|labsdb|db1069)')
             ->fetch_all();
 
-        $this->qps = sql::query('tendril.global_status_log gsl')
+        $this->qps = sql('tendril.global_status_log gsl')
             ->fields(array(
                 'srv.id',
                 'floor((max(value)-min(value))/(unix_timestamp(max(stamp))-unix_timestamp(min(stamp)))) as qps',
@@ -103,13 +103,13 @@ class Package_Tree extends Package
             ->group('server_id')
             ->fetch_pair('id', 'qps');
 
-        $this->versions = sql::query('tendril.global_variables')
+        $this->versions = sql('tendril.global_variables')
             ->fields('server_id, variable_value')
             ->where_in('server_id', keys($this->hosts))
             ->where_eq('variable_name', 'version')
             ->fetch_pair('server_id', 'variable_value');
 
-        $this->replag = sql::query('tendril.slave_status a')
+        $this->replag = sql('tendril.slave_status a')
             ->join('tendril.slave_status b', 'a.server_id = b.server_id')
             ->fields('a.server_id, a.variable_value')
             ->where_in('a.server_id', keys($this->hosts))
@@ -118,12 +118,12 @@ class Package_Tree extends Package
             ->where_eq('b.variable_value', 'Yes')
             ->fetch_pair('server_id', 'variable_value');
 
-        $roots = sql::query('tendril.shards')
+        $roots = sql('tendril.shards')
             ->where_eq('display', 1)
             ->order('place')
             ->fetch_pair('name', 'master_id');
 
-        $this->replink = sql::query('tendril.servers m')
+        $this->replink = sql('tendril.servers m')
             ->join('tendril.replication r', 'm.id = r.master_id')
             ->join('tendril.servers s', 'r.server_id = s.id')
             ->fields(array(

@@ -9,13 +9,14 @@ ob_start();
 define('ROOT', dirname(dirname(__FILE__)).'/');
 
 require_once ROOT .'lib/utility.php';
-require_once ROOT .'lib/cache.php';
-require_once ROOT .'lib/sql.php';
-
 require_once ROOT .'lib/config.php';
 
-require_once ROOT . 'lib/dns.php';
-require_once ROOT . 'lib/host.php';
+require_once ROOT .'lib/Dict.php';
+require_once ROOT .'lib/Text.php';
+require_once ROOT .'lib/Cache.php';
+require_once ROOT .'lib/SQL.php';
+
+require_once ROOT . 'lib/Server.php';
 
 // find out where we are
 $path    = @trim(array_shift(explode('?', $_SERVER['REQUEST_URI'])), '/');
@@ -25,7 +26,7 @@ $request = strlen($path) ? explode('/', $path): array();
 $package = count($request)
     ? (preg_match('/^(21)?[a-z]+[a-z0-9_\-]+$/i', $request[0])
         ? array_shift($request) : '404')
-    : cfg('package.default');
+    : $_ENV['pkg_default'];
 
 if (!file_exists(ROOT ."pkg/$package.php"))
     $package = '404';

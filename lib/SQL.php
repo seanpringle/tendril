@@ -1,8 +1,16 @@
 <?php
 
-class sql
+// An unashamedly MySQL-centric class.
+
+function sql($table=null)
 {
-    protected $db     = null;
+    return SQL::query($table);
+}
+
+class SQL implements Iterator
+{
+    protected static $db = null;
+
     protected $table  = null;
     protected $alias  = null;
     protected $fields = array();
@@ -12,6 +20,9 @@ class sql
     protected $order  = array();
     protected $group  = array();
     protected $join   = array();
+
+    protected $for_update = false;
+    protected $share_mode = false;
 
     protected $cache  = 0;
     protected $expire = 0;
@@ -36,40 +47,137 @@ class sql
     // flags
     protected $sql_no_cache = false;
 
-    // for logging
-    protected $db_host = null;
-    protected $db_vers = null;
-    protected $db_user = null;
+    // calc found
+    protected $sql_calc_found = false;
+    protected $found_rows = 0;
+
+    // Iterator
+    protected $it_pos;
+    protected $it_keys;
+    protected $it_rows;
+
+    protected $debug = false;
 
     public function __construct($table=null, $db=null)
     {
-        if (!is_null($table)) $this->from($table);
-        $this->db(is_null($db) && function_exists('db') ? db(): $db);
+        if (!is_null($table))
+            $this->from($table);
+
+        if (!is_null($db))
+            self::$db = $db;
+
+        if (is_null(self::$db))
+            static::connect();
+
+        $this->debug = @$_ENV['debug'];
+    }
+
+    public function rewind()
+    {
+        if (!$this->rs)
+        {
+            $data = $this->fetch_all();
+            $this->it_keys = array_keys($data);
+            $this->it_rows = array_values($data);
+        }
+        $this->it_pos = 0;
+    }
+
+    public function current()
+    {
+        return dict($this->it_rows[$this->it_pos]);
+    }
+
+    public function key()
+    {
+        return $this->it_keys[$this->it_pos];
+    }
+
+    public function next()
+    {
+        $this->it_pos++;
+    }
+
+    public function valid()
+    {
+        return isset($this->it_keys[$this->it_pos]);
+    }
+
+    public static function connect($con=null)
+    {
+        $env = dict(is_array($con) ? $con: $_ENV);
+
+        if ($env->debug)
+            error_log(sprintf('database connect: %s@%s:%d', $env->db_user, $env->db_host, $env->db_port));
+
+        self::$db = mysqli_connect(
+            $env->get('db_host', 'localhost'),
+            $env->get('db_user', $env->USER),
+            $env->get('db_pass', ''),
+            $env->get('db_name', 'test'),
+            $env->get('db_port', 3306),
+            $env->get('db_sock', null)
+        );
+    }
+
+    private static function quote_number($num)
+    {
+        return "$num";
+    }
+
+    private static function quote_string($str)
+    {
+        if (preg_match('/^[a-zA-Z0-9@!#$%()+=*&^_\-. ]*$/', $str))
+            return "'$str'";
+
+        $res = "cast(X'";
+        if (strlen($str))
+            foreach (str_split($str) as $c)
+                $res .= sprintf('%02x', ord($c));
+        return $res."' as char)";
     }
 
     // quote and escape a value
     public static function quote($val)
     {
-        if (is_numeric($val) && preg_match('/^[-]{0,1}[0-9]+$/', $val)) return $val;
-        if (is_scalar($val)) return sprintf("'%s'", mysql_real_escape_string($val));
+        if (is_null($val))
+            return 'null';
+
+        if (is_int($val) || is_double($val))
+            return self::quote_number($val);
+
+        if (is_scalar($val))
+            return self::quote_string($val);
+
         if (is_array($val))
         {
             $out = array(); foreach ($val as $v) $out[] = self::quote($v);
             return sprintf('(%s)', join(',', $out));
         }
-        // expr() returns a stdObject with ->content to idetify something already escaped
-        if (is_object($val) && get_class($val) == 'stdClass' && isset($val->content)) return $val->content;
-        if (is_callable($val)) return $val();
+
+        if (is_object($val))
+            return strval($val);
+
+        if (is_callable($val))
+            return $val();
+
         return 'null';
     }
 
     public function table() { return $this->table; }
+
     public function alias() { return $this->alias; }
 
-    // quote a field or table name if safe to do so
+    // quote a field or table name or sub-query if safe to do so
     public static function quote_name($key)
     {
-        return preg_match('/^[a-zA-Z]+[a-zA-Z0-9_]*$/', $key) ? sprintf('`%s`', trim($key)): trim($key);
+        if (is_object($key))
+            return '('.strval($key).')';
+
+        if (preg_match('/^[a-zA-Z]+[a-zA-Z0-9_]*$/', $key))
+            return sprintf('`%s`', trim($key));
+
+        return trim($key);
     }
 
     // quote and escape key/value pairs
@@ -93,33 +201,6 @@ class sql
         return join(', ', $out);
     }
 
-    // determine the name of a table's primary key
-    public static function primary_key($table) {
-        $schema = 'database()';
-        if (preg_match_all('/^(.+)\.(.+)$/', $table, $matches))
-        {
-            $schema = "'".$matches[1][0]."'";
-            $table  = $matches[2][0];
-        }
-        return self::query('information_schema.COLUMNS', sql::MEMCACHE)
-            ->fields('COLUMN_NAME')
-            ->where('TABLE_NAME', $table)->where('COLUMN_KEY', 'PRI')
-            ->where("TABLE_SCHEMA = $schema")->fetch_value();
-    }
-
-    // grab a table's field types and defaults
-    public static function table_fields($table) {
-        $schema = 'database()';
-        if (preg_match_all('/^(.+)\.(.+)$/', $table, $matches))
-        {
-            $schema = "'".$matches[1][0]."'";
-            $table  = $matches[2][0];
-        }
-        return self::query('information_schema.COLUMNS', sql::MEMCACHE)
-            ->fields('COLUMN_NAME,COLUMN_DEFAULT,IS_NULLABLE,DATA_TYPE,COLUMN_KEY,EXTRA,CHARACTER_MAXIMUM_LENGTH')
-            ->where('TABLE_NAME', $table)->where("TABLE_SCHEMA = $schema")->fetch_all();
-    }
-
     // generate an arbitrary sql fragment with ? fields
     public static function parse($pattern)
     {
@@ -140,12 +221,12 @@ class sql
     public static function expr()
     {
         $out = call_user_func_array('self::parse', func_get_args());
-        $obj = new stdClass(); $obj->content = $out;
+        $obj = text($out);
         return $obj;
     }
 
     // allow client side caching of result
-    public function cache($f=sql::CACHE, $expire=0)
+    public function cache($f=SQL::CACHE, $expire=0)
     {
         $this->cache = $f;
         $this->expire = $expire;
@@ -153,16 +234,11 @@ class sql
     }
 
     // disable all caching, including query cache
-    public function nocache()
+    public function no_cache()
     {
-        $this->cache(sql::NOCACHE, 0);
+        $this->cache(SQL::NOCACHE, 0);
         $this->sql_no_cache = true;
         return $this;
-    }
-
-    public function db($db)
-    {
-        $this->db = $db;
     }
 
     // add a field to be retrieved
@@ -171,6 +247,13 @@ class sql
         $this->fields[] = self::quote_name($field);
         return $this;
     }
+
+    public function no_fields()
+    {
+        $this->fields = array();
+        return $this;
+    }
+
     // set an array of field to be retrieved
     public function fields($fields)
     {
@@ -182,20 +265,37 @@ class sql
 
         return $this;
     }
+
+    // sub-query field
+    public function field_select($name, $search)
+    {
+        $this->fields[] = sprintf('(%s) as %s',
+            $search->limit(1)->get_select(),
+            self::quote_name($name)
+        );
+        return $this;
+    }
+
+    public function count()
+    {
+        return $this->fields('count(*)');
+    }
+
     // set primary table name
     public function from($table, $alias=null)
     {
-        if (strpos($table, ' ') && is_null($alias))
+        if (is_string($table) && strpos($table, ' ') && is_null($alias))
             list ($table, $alias) = preg_split('/\s+/', trim($table));
+
+        if (is_object($table) && is_null($alias))
+            $alias = 't'.uniqid();
 
         $this->table = $table;
         $this->alias = $alias;
 
-        if (empty($this->fields))
-            $this->field(($alias ? $alias: $table).'.*');
-
         return $this;
     }
+
     // create an SQL clause for WHERE or JOIN conditions
     public static function clause($name)
     {
@@ -203,117 +303,182 @@ class sql
         $argc = func_num_args();
         $value = $argc > 1 ? func_get_arg(1): null;
         // ? mark expression with variable number of args
-        if (strpos($name, '?') !== false)
+        if (is_scalar($name) && strpos($name, '?') !== false)
             return call_user_func_array('self::parse', func_get_args());
         else
         // single field name without operator, so default to =
-        if (strpos($name, ' ') === false && $argc > 1)
+        if (is_scalar($name) && strpos($name, ' ') === false && $argc > 1)
             return sprintf('%s = %s', self::quote_name($name), self::quote($value));
         else
         // single field with trailing operator and separate value
-        if (strpos($name, ' ') !== false && $argc > 1)
+        if (is_scalar($name) && strpos($name, ' ') !== false && $argc > 1)
         {
             list ($field, $op) = preg_split('/\s+/', $name);
             return sprintf('%s %s %s', self::quote_name($field), $op, self::quote($value));
         }
         else
         // only one arg and may be raw SQL, don't touch it
-            return $name;
+            return strval($name);
     }
+
     // add a where clause, defaulting to = when >1 argument
     public function where($sql)
     {
         $this->where[] = call_user_func_array('self::clause', func_get_args());
         return $this;
     }
+
     public function where_eq($name, $val)
     {
         return $this->where($name.' =', $val);
     }
+
     public function where_ne($name, $val)
     {
         return $this->where($name.' <>', $val);
     }
+
     public function where_lt($name, $val)
     {
         return $this->where($name.' <', $val);
     }
+
     public function where_let($name, $val)
     {
         return $this->where($name.' <=', $val);
     }
+
     public function where_gt($name, $val)
     {
         return $this->where($name.' >', $val);
     }
+
     public function where_gte($name, $val)
     {
         return $this->where($name.' >=', $val);
     }
-    public function where_like($name, $val, $mode=true)
+
+    public function where_like($names, $val, $mode=true)
     {
-        $this->where[] = sprintf('%s %s %s', $name, $mode ? 'like': 'not like', self::quote($val));
+        if (is_scalar($names))
+            $names = array($names);
+
+        foreach ($names as $name)
+            $this->where[] = sprintf('%s %s %s', $name, $mode ? 'like': 'not like', self::quote($val));
+
         return $this;
     }
+
     public function where_not_like($name, $val)
     {
         return $this->where_like($name, $val, false);
     }
+
     public function where_regexp($name, $val, $mode=true)
     {
         $this->where[] = sprintf('%s %s %s', $name, $mode ? 'regexp': 'not regexp', self::quote($val));
         return $this;
     }
+
     public function where_not_regexp($name, $val)
     {
         return $this->where_regexp($name, $val, false);
     }
+
+    public function where_match($fields, $against)
+    {
+        if (is_scalar($fields))
+            $fields = array($fields);
+
+        foreach ($fields as &$field)
+            $field = self::quote_name($field);
+
+        $this->where[] = sprintf('match(%s) against (%s in boolean mode)',
+            join(',', $fields), self::quote($against)
+        );
+    }
+
+    public function where_fk($name, $field)
+    {
+        $this->where[] = self::quote_name($name).' = '.self::quote_name($field);
+        return $this;
+    }
+
     public function having($sql)
     {
         $this->having[] = call_user_func_array('self::clause', func_get_args());
         return $this;
     }
+    protected static function ensure_array($vals)
+    {
+        if (is_null($vals)) $vals = array(null);
+        if (is_scalar($vals)) $vals = preg_split('/\s*,\s*/', $vals);
+        foreach ($vals as &$val) if (is_numeric($val) && preg_match('/^[0-9]+$/', $val)) $val = intval($val);
+        return $vals;
+    }
+
     // add a field IN(...values...)
     public function where_in($name, $vals)
     {
-        if (is_scalar($vals)) $vals = preg_split('/\s*,\s*/', $vals);
-        $this->where[] = sprintf('%s in (%s)', self::quote_name($name), join(',', self::prepare($vals)));
+        if (is_object($vals))
+        {
+            $this->where[] = sprintf('%s in (%s)', self::quote_name($name), $vals->get_select());
+            return $this;
+        }
+        $vals = static::ensure_array($vals);
+        $this->where[] = !empty($vals)
+            ? sprintf('%s in (%s)', self::quote_name($name), join(',', self::prepare($vals)))
+            : sprintf('1 = 0 /* empty: %s IN() */', $name);
         return $this;
     }
+
     // add a field IN(...values...)
     public function where_not_in($name, $vals)
     {
-        if (is_scalar($vals)) $vals = preg_split('/\s*,\s*/', $vals);
-        $this->where[] = sprintf('%s not in (%s)', self::quote_name($name), join(',', self::prepare($vals)));
+        if (is_object($vals))
+        {
+            $this->where[] = sprintf('%s not in (%s)', self::quote_name($name), $vals->get_select());
+            return $this;
+        }
+        $vals = static::ensure_array($vals);
+        $this->where[] = !empty($vals)
+            ? sprintf('%s not in (%s)', self::quote_name($name), join(',', self::prepare($vals)))
+            : sprintf('1 = 0 /* empty: %s NOT IN() */', $name);
         return $this;
     }
+
     public function where_in_if($name, $vals)
     {
         if (!empty($vals)) $this->where_in($name, $vals);
         return $this;
     }
+
     public function where_not_in_if($name, $vals)
     {
         if (!empty($vals)) $this->where_not_in($name, $vals);
         return $this;
     }
+
     // add a field IS NULL
     public function where_null($name, $state=true)
     {
         $this->where[] = sprintf('%s %s null', self::quote_name($name), $state ? 'is': 'is not');
         return $this;
     }
+
     // add a field IS NULL
     public function where_not_null($name)
     {
         return $this->where_null($name, false);
     }
+
     // add a field between x AND y
     public function where_between($name, $lower, $upper)
     {
         $this->where(self::quote_name($name) .' between ? and ?', $lower, $upper);
         return $this;
     }
+
     // bulk add where clauses to be ANDed togetehr
     public function where_and($pairs)
     {
@@ -324,6 +489,7 @@ class sql
         }
         return $this;
     }
+
     // bulk add where clauses to be ORed together
     public function where_or($pairs)
     {
@@ -338,6 +504,7 @@ class sql
         $this->where = $tmp;
         return $this;
     }
+
     // limit the returned rows
     public function limit($offset, $limit=null)
     {
@@ -345,6 +512,15 @@ class sql
         else $this->limit = $offset.', '.$limit;
         return $this;
     }
+
+    // wrapper for limit
+    public function paginate($page_num=1, $page_size=10)
+    {
+        $start_index = ($page_num - 1) * $page_size;
+        $this->limit($start_index, $page_size);
+        return $this;
+    }
+
     // order by one or more fields
     public function order($name, $dir='asc')
     {
@@ -364,14 +540,28 @@ class sql
             $this->order[] = self::quote_name($name).' '.$dir;
         return $this;
     }
+
+    public function no_order()
+    {
+        $this->order = array();
+        return $this;
+    }
+
     // group by one or more fields
     public function group($vals)
     {
-        if (is_scalar($vals)) $vals = preg_split('/\s*,\s*/', $vals);
+        $vals = static::ensure_array($vals);
         foreach ($vals as $val) $this->group[] = self::quote_name($val);
         $this->group = array_unique($this->group);
         return $this;
     }
+
+    public function no_group()
+    {
+        $this->group = array();
+        return $this;
+    }
+
     // join a table
     public function join($table, $on=null)
     {
@@ -396,6 +586,7 @@ class sql
 
         return $this;
     }
+
     // left outer join a table
     public function left_join($table, $on=null)
     {
@@ -414,6 +605,7 @@ class sql
 
         return $this;
     }
+
     // right outer join a table
     public function right_join($table, $on=null)
     {
@@ -431,7 +623,9 @@ class sql
         $this->join[] = sprintf('right join '. $table .($alias ? ' '.$alias:'') . ' on ' . $clause);
 
         return $this;
-    }    // set key/val pair to be written in undate or single row insert
+    }
+
+    // set key/val pair to be written in undate or single row insert
     public function set($pairs, $val=null)
     {
         if (is_scalar($pairs))
@@ -445,38 +639,74 @@ class sql
             $this->set($key, $val);
         return $this;
     }
+
     // retrieve from set
     public function get($key=null, $def=null)
     {
         if (is_null($key)) return $this->set;
         return isset($this->set[$key]) ? $this->set[$key]: $def;
     }
+
     // set multiple rows to be written in a bulk insert
     public function rows($rows)
     {
         $this->multiset = $rows;
         return $this;
     }
+
     // add another set to be written in a bulk insert
     public function add_row($row)
     {
         $this->multiset[] = $row;
         return $this;
     }
+
+    // set SQL_CALC_FOUND_ROWS
+    public function calc()
+    {
+        $this->sql_calc_found = true;
+        return $this;
+    }
+
+    // unset SQL_CALC_FOUND_ROWS
+    public function no_calc()
+    {
+        $this->sql_calc_found = false;
+        return $this;
+    }
+
     // methods for building SQL fragments
-    private function get_from() { return 'from '.self::quote_name($this->table) .($this->alias ? ' '.$this->alias:''); }
-    private function get_join() { return $this->join ? join(' ', $this->join): ''; }
-    private function get_where() { return $this->where ? 'where '.join(' and ', $this->where) : ''; }
+    private function get_from()   { return 'from '.self::quote_name($this->table) .($this->alias ? ' '.$this->alias:''); }
+    private function get_join()   { return $this->join ? join(' ', $this->join): ''; }
+    private function get_where()  { return $this->where ? 'where '.join(' and ', $this->where) : ''; }
     private function get_having() { return $this->having ? 'having '.join(' and ', $this->having) : ''; }
-    private function get_limit() { return $this->limit ? 'limit '.$this->limit: ''; }
-    private function get_order() { return $this->order ? 'order by '.join(', ', $this->order): ''; }
-    private function get_group() { return $this->group ? 'group by '.join(', ', $this->group): ''; }
+    private function get_limit()  { return $this->limit ? 'limit '.$this->limit: ''; }
+    private function get_order()  { return $this->order ? 'order by '.join(', ', $this->order): ''; }
+    private function get_group()  { return $this->group ? 'group by '.join(', ', $this->group): ''; }
+
+    // FOR UPDATE
+    public function for_update()
+    {
+        $this->for_update = true;
+        return $this;
+    }
+
+    // LOCK IN SHARE MDOE
+    public function share_mode()
+    {
+        $this->share_mode = true;
+        return $this;
+    }
 
     // generate a SELECT query
     public function get_select()
     {
-        $flags  = $this->sql_no_cache ? 'SQL_NO_CACHE': '';
-        $fields = $this->fields ? join(', ', $this->fields): '*';
+        $flags  = $this->sql_no_cache   ? 'sql_no_cache'        : '';
+        $flags .= $this->sql_calc_found ? 'sql_calc_found_rows' : '';
+
+        $fields_table = $this->alias ? $this->alias: self::quote_name($this->table);
+
+        $fields = $this->fields ? join(', ', $this->fields): $fields_table.'.*';
         $from   = $this->get_from();
         $join   = $this->get_join();
         $where  = $this->get_where();
@@ -484,9 +714,17 @@ class sql
         $order  = $this->get_order();
         $group  = $this->get_group();
         $limit  = $this->get_limit();
+        $mode   = $this->for_update ? 'for update': '';
+        $mode   = $this->share_mode ? 'lock in share mode': '';
         // MySQL runs a needless filesort when grouping without an order clause. disable it.
         if ($group && !$order) $order = 'order by null';
-        return "select $flags $fields $from $join $where $group $having $order $limit";
+        return "select $flags $fields $from $join $where $group $having $order $limit $mode";
+    }
+
+    // Often useful...
+    public function __toString()
+    {
+        return $this->get_select();
     }
 
     // generate a DELETE query
@@ -541,36 +779,40 @@ class sql
     public function execute($sql=null)
     {
         if (is_null($sql)) $sql = $this->get_select();
+        if ($this->debug) error_log('execute: '.$sql);
 
         $this->error = null;
         $this->error_msg = null;
 
-        $host = preg_replace('/^([^\s]+).*$/', '\1', mysql_get_host_info($this->db));
-        e('sql '.$host.': '.rtrim($sql)."\n");
+        $host = preg_replace('/^([^\s]+).*$/', '\1', mysqli_get_host_info(self::$db));
 
-        $this->rs = mysql_query($sql, $this->db);
+        $this->rs = mysqli_query(self::$db, $sql, MYSQLI_STORE_RESULT);
         $this->rs_sql = $sql;
-
-        if (!$this->rs)
-        {
-            $this->error = mysql_errno();
-            $this->error_msg = mysql_error();
-            e('sql error: '.$this->error.' '.$this->error_msg."\n");
-        }
-
         $this->rs_fields = array();
 
-        if (is_resource($this->rs))
+        if ($this->rs === false)
         {
-            $i = 0;
-            $l = mysql_num_fields($this->rs);
-            while ($i < $l)
-            {
-                $this->rs_fields[$i] = mysql_fetch_field($this->rs, $i);
-                $i++;
-            }
+            $this->error = mysqli_errno(self::$db);
+            $this->error_msg = mysqli_error(self::$db);
+        }
+        else
+        if (is_object($this->rs))
+        {
+            while (($field = $this->rs->fetch_field()) && $field)
+                $this->rs_fields[] = $field;
         }
 
+        if ($this->sql_calc_found)
+        {
+            $this->found_rows = self::rawquery('select found_rows()')->fetch_value();
+        }
+        return $this;
+    }
+
+    public function ok($err=0)
+    {
+        if (!is_null($this->error))
+            throw new Exception($this->error_msg, $err ? $err: $this->error);
         return $this;
     }
 
@@ -584,40 +826,53 @@ class sql
         $sql = $this->rs_sql ? $this->rs_sql: $this->get_select();
         $md5 = md5($sql);
 
-        if ($this->cache === sql::MEMCACHE)
-            cache::set($md5, $rows, $this->expire);
+        if ($this->cache === SQL::MEMCACHE)
+            Cache::set($md5, $rows, $this->expire);
 
-        if ($this->cache === sql::CACHE)
+        if ($this->cache === SQL::CACHE)
             self::$_result_cache[$md5] = gzcompress(serialize($rows));
+    }
+
+    public function found()
+    {
+        return $this->found_rows;
     }
 
     // retrieve all available rows
     public function fetch_all($index=null)
     {
-        $host = preg_replace('/^([^\s]+).*$/', '\1', mysql_get_host_info($this->db));
+        $host = preg_replace('/^([^\s]+).*$/', '\1', mysqli_get_host_info(self::$db));
 
         $sql = $this->rs_sql ? $this->rs_sql: $this->get_select();
         $md5 = md5($sql);
 
         if (!$this->rs)
         {
+            $rows = null;
             if ($this->cache && isset(self::$_result_cache[$md5]))
             {
-                e("sql $host (result cache): ".rtrim($sql)."\n");
-                return unserialize(gzuncompress(self::$_result_cache[$md5]));
+                $rows = unserialize(gzuncompress(self::$_result_cache[$md5]));
             }
 
-            if (($data_obj = cache::get($md5, 'array')) && is_array($data_obj))
+            if (($data_obj = Cache::get($md5)) && is_array($data_obj))
             {
-                e("sql $host (memcached): ".rtrim($sql)."\n");
-                return $data_obj;
+                $rows = $data_obj;
+            }
+
+            if ($rows)
+            {
+                if ($this->debug)
+                    error_log('cached ('.count($rows).'): '.$sql);
+                foreach ($rows as $i => $row)
+                    $rows[$i] = dict($row);
+                return $rows;
             }
 
             $this->execute($sql);
         }
 
         $rows = array();
-        while (($row = mysql_fetch_array($this->rs, MYSQL_NUM)) && $row)
+        while ($this->rs && ($row = mysqli_fetch_array($this->rs, MYSQLI_NUM)) && $row)
         {
             $j = count($rows);
             $res = array();
@@ -627,17 +882,40 @@ class sql
                 $field = $this->rs_fields[$i];
                 $res[$field->name] = $value;
 
-                if ($field->type == 'int')
-                    $res[$field->name] = intval($value);
+                // NOT_NULL_FLAG = 1
+                // PRI_KEY_FLAG = 2
+                // UNIQUE_KEY_FLAG = 4
+                // BLOB_FLAG = 16
+                // UNSIGNED_FLAG = 32
+                // ZEROFILL_FLAG = 64
+                // BINARY_FLAG = 128
+                // ENUM_FLAG = 256
+                // AUTO_INCREMENT_FLAG = 512
+                // TIMESTAMP_FLAG = 1024
+                // SET_FLAG = 2048
+                // NUM_FLAG = 32768
+                // PART_KEY_FLAG = 16384
+                // GROUP_FLAG = 32768
+                // UNIQUE_FLAG = 65536
 
-                if ($field->primary_key)
+                if (!is_null($value))
+                {
+                    if ($field->flags & 32768)
+                        $res[$field->name] = intval($value);
+                }
+
+                if ($field->flags & 2)
                     $pri[] = $value;
             }
             if ($pri) $j = join(':', $pri);
-            $rows[$index ? $res[$index]: $j] = $res;
+            $rows[$index && array_key_exists($index, $res) ? $res[$index]: $j] = $res;
         }
 
         $this->recache($rows);
+
+        foreach ($rows as $i => $row)
+            $rows[$i] = dict($row);
+
         return $rows;
     }
 
@@ -645,7 +923,8 @@ class sql
     public function fetch_all_numeric()
     {
         $rows = $this->fetch_all();
-        foreach ($rows as &$row) $row = array_values($row);
+        foreach ($rows as $i => $row)
+            $rows[$i] = dict($row->values());
         return $rows;
     }
 
@@ -654,7 +933,7 @@ class sql
     {
         $out = array();
         foreach ($this->fetch_all() as $row)
-            $out[] = is_null($name) ? array_shift($row): $row[$name];
+            $out[] = $row[is_null($name) ? $row->keys()[0]: $name];
         return $out;
     }
 
@@ -663,7 +942,7 @@ class sql
     {
         $out = array();
         foreach ($this->fetch_all() as $row)
-            $out[$row[$key]] = $row[$val];
+            $out[$row->$key] = $row->$val;
         return $out;
     }
 
@@ -672,62 +951,61 @@ class sql
     {
         if (!$this->limit) $this->limit(1);
         $rows = $this->fetch_all();
-        return $rows ? array_shift($rows): null;
+        return count($rows) ? array_shift($rows): null;
     }
 
     // retrieve a single row numerically indexed
     public function fetch_one_numeric()
     {
-        $row = $this->fetch_one();
-        return $row ? array_values($row): $row;
+        if (!$this->limit) $this->limit(1);
+        $rows = $this->fetch_all_numeric();
+        return count($rows) ? array_shift($rows): null;
     }
 
     // retrieve a single value
     public function fetch_value($name=null)
     {
         $row = $this->fetch_one();
-        if ($row) {
-            if ($name && isset($row[$name])) return $row[$name];
-            return array_shift($row);
-        }
-        return null;
-    }
 
-    // retrieve all rows and group by $name
-    public function fetch_all_grouped($name)
-    {
-        $rows = $this->fetch_all();
-        $res  = array();
-        foreach ($rows as $key => $row)
-            $res[$row[$name]][] = $row;
-        return $res;
+        if (!$row->is_empty())
+        {
+            if (!is_null($name))
+                return $row->$name;
+
+            return $row->values()[0];
+        }
+
+        return null;
     }
 
     // wrappers to execute the current state as different queries
     public function select($fields=null) { if ($fields) $this->fields($fields); return $this->execute($this->get_select()); }
+
     public function delete() { return $this->execute($this->get_delete()); }
+
     public function insert($set=null, $val=null) { if ($set) $this->set($set, $val); return $this->execute($this->get_insert()); }
+
     public function update($set=null, $val=null) { if ($set) $this->set($set, $val); return $this->execute($this->get_update()); }
+
     public function replace($set=null, $val=null) { if ($set) $this->set($set, $val); return $this->execute($this->get_replace()); }
-    public function insert_id($set=null, $val=null) { $this->insert($set, $val); return mysql_insert_id(); }
+
+    public function insert_id($set=null, $val=null) { $this->insert($set, $val); return $this->rs ? mysqli_insert_id(self::$db): null; }
 
     public function truncate() { return $this->execute('truncate table '.self::quote_name($this->table)); }
 
     // initializer
-    public static function query($table=null, $cache=sql::NOCACHE, $db=null)
+    public static function query($table=null, $cache=SQL::NOCACHE, $db=null)
     {
-        $s = new static($table);
+        $s = new static($table, $db);
         if ($cache) $s->cache($cache);
-        if (!is_null($db)) $s->db($db);
         return $s;
     }
 
     // initializer
-    public static function rawquery($sql=null, $cache=sql::NOCACHE, $db=null)
+    public static function rawquery($sql=null, $cache=SQL::NOCACHE, $db=null)
     {
-        $s = new static();
+        $s = new static(null, $db);
         if ($cache) $s->cache($cache);
-        if (!is_null($db)) $s->db($db);
         $s->execute($sql);
         return $s;
     }
@@ -735,315 +1013,8 @@ class sql
     // initializer
     public static function command($command, $db=null)
     {
-        $s = new static();
-        if ($db) $s->db($db);
+        $s = new static(null, $db);
         $s->execute($command);
         return $s;
-    }
-}
-
-/**
- * Handle a single databse record.
- */
-class sqlrecord
-{
-    public $ok = true;
-
-    protected static $_schema_cache = array();
-
-    protected $_autoinc  = false;
-    protected $_table    = 'unknown';
-    protected $_schema   = array();
-    protected $_snapshot = array();
-    protected $_missing  = false;
-    protected $_dberror  = null;
-
-    /**
-     * @param string table name
-     * @param string|uint|array primary key value or entire record
-     */
-    public function __construct($table='unknown', $pk=0)
-    {
-        $this->_table = $table;
-
-        // load Table's schema from INFORMATION_SCHEMA, or memcached
-        $this->_schema = array();
-        $data = expect(static::$_schema_cache, $this->_table, 'array');
-
-        if (!$data)
-        {
-            $data = sql::table_fields($this->_table);
-            static::$_schema_cache[$this->_table] = $data;
-        }
-
-        foreach ($data as $row)
-        {
-            list ($name, $default, $nullable, $type, $key, $extra, $char_len) = array_values($row);
-
-            if ($key == 'PRI')
-                $this->_autoinc = (strstr($extra, 'auto_increment')) ?1:0;
-
-            if (is_null($default))
-                $value = NULL;
-            else
-            if (preg_match('/int/', $type) && !preg_match('/bigint/', $type))
-                $value = intval($default);
-            else
-            if (preg_match('/decimal/', $type))
-                $value = floatval($default);
-            else
-            if (preg_match('/char/', $type) && preg_match('/^[{[]/', $default))
-                $value = json_decode($default, true);
-            else
-                $value = strval($default);
-
-            $this->_schema[$name] = array($value, $type, $key, $extra, $char_len);
-        }
-
-        $this->inject();
-
-        if (is_array($pk))
-        {
-            $this->inject($pk);
-        }
-        else
-        if ($pk)
-        {
-            $this->id = $pk;
-            $this->ok = $this->load();
-        }
-
-        if ($this->ok)
-            $this->_snapshot = $this->export();
-    }
-    /**
-     * Check database error
-     */
-    protected function check($sql)
-    {
-        $err = $sql->error();
-        if ($err)
-        {
-            $this->ok = false;
-            $this->_dberror = $err[1];
-        }
-        return $this->ok;
-    }
-    /**
-     * Load record from database, or external cache.
-     * @return success
-     */
-    protected function load()
-    {
-        $sql = sql::query($this->_table)->where('id', $this->id);
-        $row = $sql->fetch_one();
-
-        $this->check($sql);
-
-        if (!$row || !$this->ok)
-        {
-            $this->_missing = true;
-            $this->ok = false;
-            return false;
-        }
-        $this->inject($row);
-        return true;
-    }
-    /**
-     * Initialize record from external source, casting types as necessary.
-     * @param array field/value pairs
-     * @param bool false: reset non-supplied fields to their defaults
-     */
-    public function inject($data=array(), $overlay=false)
-    {
-        foreach ($this->_schema as $field => $row)
-        {
-            list ($default, $type) = $row;
-
-            if ($overlay && !array_key_exists($field, $data)) continue;
-
-            $new_value = array_key_exists($field, $data) ? $data[$field]: $default;
-            $value = $default;
-
-            if (is_null($new_value))
-                $value = NULL;
-            else
-            if (preg_match('/int/', $type) && !preg_match('/bigint/', $type))
-                $value = intval($new_value);
-            else
-            if (preg_match('/decimal/', $type))
-                $value = floatval($new_value);
-            else
-            if (preg_match('/char/', $type) && is_array($default))
-            {
-                if (is_string($new_value))
-                    $new_value = json_decode($new_value, true);
-                $value = $new_value;
-            }
-            else
-            if (is_scalar($new_value))
-                $value = strval($new_value);
-            $this->$field = $value;
-        }
-    }
-    /**
-     * Dump record field/values as array
-     * @param bool if it is for database save right now (affects auto timestamps)
-     */
-    public function export()
-    {
-        $data = array();
-
-        foreach ($this->_schema as $field => $row)
-        {
-            list ($default, $type) = $row;
-
-            if (is_null($this->$field))
-                $data[$field] = NULL;
-            else
-            if (preg_match('/int/', $type) && !preg_match('/bigint/', $type))
-                $data[$field] = intval($this->$field);
-            else
-            if (preg_match('/decimal/', $type))
-                $data[$field] = floatval($this->$field);
-            else
-            if (preg_match('/char/', $type) && is_array($default))
-                $data[$field] = $this->$field;
-            else
-            if (preg_match('/timestamp/', $type) && $this->$field == 'CURRENT_TIMESTAMP')
-                continue;
-            else
-                $data[$field] = strval($this->$field);
-        }
-        return $data;
-    }
-    /**
-     * Update record field/values from external source, such as Form submission.
-     * @param array field/value pairs
-     */
-    public function detect($data)
-    {
-        $this->inject($data, true);
-    }
-    /**
-     * Update record field/values from external source, such as Form submission. only import
-     * new values. return any clashes as $diff
-     * @param array field/value pairs
-     * @return array
-     */
-    public function merge($data)
-    {
-        $ndata = array(); $diff = array();
-        foreach (array_keys($this->_schema) as $field)
-        {
-            if (array_key_exists($field, $data))
-            {
-                if (!$this->$field) $ndata[$field] = $data[$field];
-                else if ($this->$field != $data[$field]) $diff[$field] = $data[$field];
-            }
-        }
-        $this->inject($ndata, true);
-        return $diff;
-    }
-    /**
-     * Save record to database
-     */
-    public function save()
-    {
-        $this->ok = ($this->_missing || !$this->id) ? $this->create(): $this->update();
-        return $this->ok;
-    }
-    /**
-     * Update record in database.
-     */
-    public function update()
-    {
-        if (array_key_exists('updated', $this->_schema) && (!$this->updated || $this->updated == $this->_snapshot['updated']))
-            $this->updated = preg_match('/int/', $this->_schema['updated'][1]) ? time(): date('Y-m-d H:i:s');
-
-        $data = array();
-        foreach ($this->_schema as $field => $row)
-        {
-            list ($default, $type) = $row;
-
-            $pool = $this->_snapshot[$field];
-
-            if (is_null($this->$field) && !is_null($pool))
-                $data[$field] = NULL;
-            else
-            if (preg_match('/int/', $type) && !preg_match('/bigint/', $type) && intval($this->$field) != intval($pool))
-                $data[$field] = intval($this->$field);
-            else
-            if (preg_match('/decimal/', $type) && floatval($this->$field) != floatval($pool))
-                $data[$field] = floatval($this->$field);
-            else
-            if (preg_match('/char/', $type) && is_array($default) && serialize($this->$field) != serialize($pool))
-                $data[$field] = json_encode($this->$field);
-            else
-            if (preg_match('/timestamp/', $type) && strtotime($this->$field) != strtotime($pool))
-                $data[$field] = date('Y-m-d H:i:s', strtotime($this->$field));
-            else
-            if ((is_scalar($this->$field) || is_null($this->$field)) && (is_scalar($pool) || is_null($pool)) && strval($this->$field) != strval($pool))
-                $data[$field] = strval($this->$field);
-        }
-        if (count($data))
-        {
-            $this->check(
-                sql::query($this->_table)->set($data)->where('id', $this->id)->update()
-            );
-        }
-        return $this->ok;
-    }
-    /**
-     * Insert new record to database.
-     */
-    public function create()
-    {
-        if (array_key_exists('created', $this->_schema) && !$this->created)
-            $this->created = preg_match('/int/', $this->_schema['created'][1]) ? time(): date('Y-m-d H:i:s');
-
-        $data = array(); $edata = $this->export();
-        // export may have been overidden, so check returned data
-        foreach ($this->_schema as $field => $row)
-        {
-            $val = $edata[$field];
-            $data[$field] = is_array($val) ? json_encode($val): $val;
-        }
-        if ($this->_autoinc)
-            unset($data['id']);
-
-        $sql = sql::query($this->_table)->set($data);
-        $id = $this->_autoinc ? $sql->insert_id(): $sql->insert();
-
-        if (!$this->check($sql)) return false;
-        if ($this->_autoinc) $this->id = $id;
-
-        // reload may be needed for field values generated by the database
-        foreach ($this->_schema as $field => $row)
-        {
-            list ($default, $type) = $row;
-            if ($type == 'timestamp' && $default == 'CURRENT_TIMESTAMP')
-            {
-                $this->load();
-                break;
-            }
-        }
-        return true;
-    }
-    /**
-     * Delete record from database
-     */
-    public function delete()
-    {
-        return $this->check(
-            sql::query($this->_table)->where('id', $this->id)->delete()
-        );
-    }
-    /**
-     * Return last db write error. Only valid when ->ok = false;
-     */
-    public function error()
-    {
-        return $this->ok ? null: $this->_dberror;
     }
 }

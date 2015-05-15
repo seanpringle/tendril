@@ -2,29 +2,21 @@
 
 function todo()
 {
-    $msg = 'TODO';
-    foreach (func_get_args() as $arg)
-        $msg .= ' '.$arg;
-    e($msg);
+    if (@$_ENV['debug'])
+    {
+        $msg = 'TODO';
+        foreach (func_get_args() as $arg)
+            $msg .= ' '.$arg;
+        error_log($msg);
+    }
 }
 
 function backtrace()
 {
     ob_start();
     debug_print_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-    e(ob_get_clean());
+    error_log(ob_get_clean());
 }
-
-set_error_handler(
-
-    function($errno, $message, $file, $line, $context)
-    {
-        $type = $errno == E_WARNING ? 'warning': 'e';
-        e("$type at: $file:$line, $message, $context\n");
-        backtrace();
-        return false;
-    }
-);
 
 // few python-style functions
 
@@ -338,9 +330,9 @@ function truncate($str, $len, $ext='...')
 
 function redirect($url)
 {
-    if (function_exists('debug'))
+    if (@$_ENV['debug'])
     {
-        e("redirect: $url\n");
+        error_log("redirect: $url\n");
         printf('<a href="%s">redirect: %s</a>', $url, escape($url));
         printf('<pre>%s</pre>', print_r($_REQUEST, true));
     }
@@ -498,4 +490,22 @@ function a() {
 function suffix($s)
 {
     return tag('span', array( 'class' => 'suffix', 'html' => escape($s)));
+}
+
+function dns_reverse($ip, $map=null)
+{
+    $name = $ip;
+    $ip = preg_replace('/:[0-9]+$/', '', $ip);
+
+    if ($ip)
+    {
+        $name = is_array($map) && isset($map[$ip])
+            ? $map[$ip] : Cache::get('fqdn:'.$ip);
+    }
+    if (!$name)
+    {
+        $name = gethostbyaddr($ip);
+        Cache::set('fqdn:'.$ip, $name, 86400);
+    }
+    return $name;
 }

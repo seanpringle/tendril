@@ -57,7 +57,7 @@ class Package_Host extends Package
 
         $host = $this->request('host');
 
-        $hosts = sql::query('tendril.servers h')
+        $hosts = sql('tendril.servers h')->fields('h.*')
             ->left_join('tendril.replication rm', 'h.id = rm.server_id')
             ->left_join('tendril.servers hm', 'rm.master_id = hm.id')
             ->left_join('tendril.replication rs', 'h.id = rs.master_id')
@@ -87,7 +87,7 @@ class Package_Host extends Package
             ->order('h.port')
             ->fetch_all('id');
 
-        $qps = sql::query('tendril.global_status_log gsl')
+        $qps = sql('tendril.global_status_log gsl')
             ->fields(array(
                 'srv.id',
                 'floor((max(value)-min(value))/(unix_timestamp(max(stamp))-unix_timestamp(min(stamp)))) as qps',
@@ -103,19 +103,19 @@ class Package_Host extends Package
         foreach ($qps as $id => $n)
             if (isset($hosts[$id])) $hosts[$id]['qps'] = $n;
 
-        $versions = sql::query('tendril.global_variables')
+        $versions = sql('tendril.global_variables')
             ->fields('server_id, variable_value')
             ->where_eq('variable_name', 'version')
             ->where_in_if('server_id', array_keys($hosts))
             ->fetch_pair('server_id', 'variable_value');
 
-        $uptimes = sql::query('tendril.global_status')
+        $uptimes = sql('tendril.global_status')
             ->fields('server_id, variable_value')
             ->where_eq('variable_name', 'uptime')
             ->where_in_if('server_id', array_keys($hosts))
             ->fetch_pair('server_id', 'variable_value');
 
-        $repsql = sql::query('tendril.slave_status a')
+        $repsql = sql('tendril.slave_status a')
             ->fields(array(
                 'a.server_id',
                 'group_concat(distinct a.variable_value order by a.variable_value) as variable_value',
@@ -125,7 +125,7 @@ class Package_Host extends Package
             ->group('a.server_id')
             ->fetch_pair('server_id', 'variable_value');
 
-        $replag = sql::query('tendril.slave_status a')
+        $replag = sql('tendril.slave_status a')
             ->join('tendril.slave_status b', 'a.server_id = b.server_id')
             ->fields('a.server_id, max(a.variable_value) as variable_value')
             ->where_like('a.variable_name', '%seconds_behind_master')
@@ -135,7 +135,7 @@ class Package_Host extends Package
             ->group('a.server_id')
             ->fetch_pair('server_id', 'variable_value');
 
-        $ram = sql::query('tendril.global_variables')
+        $ram = sql('tendril.global_variables')
             // extrapolate ram from buffer pool size
             // puppet $ram calcs seem to have rounding errors, hence 0.732 < 0.75
             ->fields('server_id, variable_value/0.732/1024/1024/1024 as variable_value')
@@ -176,7 +176,7 @@ class Package_Host extends Package
             'TokuDB Buffers' => 'Tokudb_buffers_fetched_target_query,Tokudb_buffers_fetched_prelocked_range,Tokudb_buffers_fetched_prefetch,Tokudb_buffers_fetched_for_write',
         );
 
-        $connections = sql::query('tendril.replication')
+        $connections = sql('tendril.replication')
             ->where_eq('server_id', $this->host->id)
             ->where_null('connection_name', false)
             ->fields(array(
@@ -253,22 +253,22 @@ class Host_Chart_24hour
 
         $server_id = $this->host->id;
 
-        $name_ids = sql::query('tendril.strings')
+        $name_ids = sql('tendril.strings')
             ->cache(sql::MEMCACHE, 300)
             ->where_in('string', map('strtolower', $this->names))
             ->fetch_pair('string', 'id');
 
-        $inner = sql::query('seq_1_to_287 s')
+        $inner = sql('seq_1_to_287 s')
             ->fields('now() - interval seq * 5 minute as x')
             ->left_join('tendril.global_status_log gsl',
                 sprintf('gsl.server_id = %d and gsl.stamp > now() - interval 24 hour', $server_id))
             ->where_in('gsl.name_id', $name_ids)
             ->where_between('gsl.stamp',
-                sql::expr('now() - interval seq * 5 minute - interval 5 minute'),
-                sql::expr('now() - interval seq * 5 minute'))
+                text('now() - interval seq * 5 minute - interval 5 minute'),
+                text('now() - interval seq * 5 minute'))
             ->group('x');
 
-        $outer = sql::query()
+        $outer = sql()
             ->from('(select now() - interval seq * 5 minute as x from seq_1_to_143)', 'o')
             ->cache(sql::MEMCACHE, 300)
             ->fields('o.x')
@@ -306,6 +306,9 @@ class Host_Chart_24hour
             sprintf('(%s) as i', $inner->get_select()),
             'o.x = i.x')
         ->fetch_all();
+
+        foreach ($rows as $i => $row)
+            $rows[$i] = $row->export();
 
 /*
 select
@@ -357,22 +360,22 @@ class Host_Chart_7day extends Host_Chart_24hour
 
         $server_id = $this->host->id;
 
-        $name_ids = sql::query('tendril.strings')
+        $name_ids = sql('tendril.strings')
             ->cache(sql::MEMCACHE, 1800)
             ->where_in('string', map('strtolower', $this->names))
             ->fetch_pair('string', 'id');
 
-        $inner = sql::query('seq_1_to_167 s')
+        $inner = sql('seq_1_to_167 s')
             ->fields('now() - interval seq hour as x')
             ->left_join('tendril.global_status_log gsl',
                 sprintf('gsl.server_id = %d and gsl.stamp > now() - interval 7 day', $server_id))
             ->where_in('gsl.name_id', $name_ids)
             ->where_between('gsl.stamp',
-                sql::expr('now() - interval seq hour - interval 1 hour'),
-                sql::expr('now() - interval seq hour'))
+                text('now() - interval seq hour - interval 1 hour'),
+                text('now() - interval seq hour'))
             ->group('x');
 
-        $outer = sql::query()
+        $outer = sql()
             ->from('(select now() - interval seq hour as x from seq_1_to_167)', 'o')
             ->cache(sql::MEMCACHE, 1800)
             ->fields('o.x')
@@ -410,6 +413,9 @@ class Host_Chart_7day extends Host_Chart_24hour
             sprintf('(%s) as i', $inner->get_select()),
             'o.x = i.x')
         ->fetch_all();
+
+        foreach ($rows as $i => $row)
+            $rows[$i] = $row->export();
 
         return array( $cols, $rows );
     }

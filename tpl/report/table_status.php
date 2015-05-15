@@ -81,7 +81,7 @@ $hosts = array();
 
 foreach ($rows as $row)
 {
-	$hosts[$row['server_id']] = $server = expect($hosts, $row['server_id'], 'object') ?: new Host($row['server_id']);
+	$hosts[$row['server_id']] = $server = expect($hosts, $row['server_id'], 'object') ?: new Server($row['server_id']);
 
 	$cells = array(
 		tag('td', array(

@@ -106,11 +106,9 @@ function drawChart()
 
 <?php
 
-$servers = sql::query('tendril.servers')->fetch_all();
-
 foreach ($rows as $row)
 {
-	$host = new Host($row['server_id']);
+	$host = new Server($row['server_id']);
 	$sample = str_replace(',', ', ', $row['info']);
 
     list ($ip, $port) = explode(':', $row['host']);

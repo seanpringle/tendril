@@ -18,6 +18,7 @@ create event tendril_partition_add
                     on part.table_name = shed.table_name
                 where part.table_schema = database()
                     and part.table_name regexp '(log|sampled)$'
+                    and part.table_name not regexp '^(db|es|virt|silver)'
                     and part.table_name in (
                         select table_name from information_schema.tables
                             where engine in ('InnoDB', 'TokuDB') and table_schema = 'tendril'
@@ -29,6 +30,7 @@ create event tendril_partition_add
                 on p.table_schema = database()
                 and t.table_name = p.table_name
                 and p.table_name regexp '(log|sampled)$'
+                and p.table_name not regexp '^(db|es|virt|silver)'
                 and p.partition_name = concat('p',to_days(now())+1)
             where p.partition_name is null;
 
@@ -80,6 +82,7 @@ create event tendril_partition_drop
                 on part.table_name = shed.table_name
             where part.table_schema = database()
                 and part.table_name regexp '(log|sampled)$'
+                and part.table_name not regexp '^(db|es|virt|silver)'
                 and part.table_name in (
                     select table_name from information_schema.tables where engine in ('InnoDB', 'TokuDB') and table_schema = 'tendril'
                 )

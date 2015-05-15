@@ -4,6 +4,9 @@ nav {
     display: inline-block;
     float: right;
 }
+input[name=host] {
+    width: 20em !important;
+}
 </style>
 
 <form method="GET" class="search">
@@ -15,7 +18,7 @@ nav {
     </tr>
     <tr>
         <td>
-            <input type="text" name="host" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
+            <input type="text" name="host" list="hints" value="<?= escape(pkg()->request('host')) ?>" placeholder="regex" />
         </td>
         <td>
             <input type="submit" value="Search" />
@@ -31,3 +34,10 @@ nav {
 
 
 <?php include 'table.php'; ?>
+
+<datalist id="hints">
+    <option value="masters">
+    <option value="slaves:">
+    <option value="family:">
+    <option value="slave-per-master">
+</datalist>

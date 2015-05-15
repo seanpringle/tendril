@@ -53,7 +53,7 @@ foreach ($events as $name => $row)
         $links = array();
         foreach ($ids as $id)
         {
-            $host = new Host($id);
+            $host = new Server($id);
             $links[] = tag('a', array(
                 'href' => sprintf('/host/%s/%d', $host->name(), $host->port()),
                 'html' => $host->describe(),

@@ -41,7 +41,7 @@ $servers = array();
 foreach ($rows as $row)
 {
 	$server_id = $row['server_id'];
-	$servers[$server_id] = $host = expect($servers, $server_id, 'object') ?: new Host(intval($server_id));
+	$servers[$server_id] = $host = expect($servers, $server_id, 'object') ?: new Server(intval($server_id));
 
 	$cells = array(
 		tag('td', array(

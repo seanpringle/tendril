@@ -119,7 +119,7 @@ class Package_Report extends Package
 
     private function schemata_ignore()
     {
-        return sql::query('tendril.schemata_ignore')->fetch_field('schema_name');
+        return sql('tendril.schemata_ignore')->fetch_field('schema_name');
     }
 
     public function regex_host($text)
@@ -128,7 +128,7 @@ class Package_Report extends Package
 
         $text = preg_replace_callback('/masters/',
             function($match) {
-                $hosts = sql::query('tendril.servers')
+                $hosts = sql('tendril.servers')
                     ->where('id in (select master_id from replication)')
                     ->where('id not in (select server_id from replication)')
                     ->fields('concat(host,":",port) as h')
@@ -139,11 +139,11 @@ class Package_Report extends Package
         );
         $text = preg_replace_callback('/slaves:([a-z0-9.]+)/',
             function($match) {
-                $mid = sql::query('tendril.servers')
+                $mid = sql('tendril.servers')
                     ->where_like('host', $match[1].'%')
                     ->fields('id')
                     ->fetch_value();
-                $hosts = sql::query('tendril.replication rep')
+                $hosts = sql('tendril.replication rep')
                     ->join('servers srv', 'rep.server_id = srv.id')
                     ->where_eq('rep.master_id', $mid)
                     ->fields('concat(srv.host,":",srv.port) as h')
@@ -154,11 +154,11 @@ class Package_Report extends Package
         );
         $text = preg_replace_callback('/family:([a-z0-9.]+)/',
             function($match) {
-                list($mid, $host) = sql::query('tendril.servers')
+                list($mid, $host) = sql('tendril.servers')
                     ->where_like('host', $match[1].'%')
                     ->fields(array('id', 'concat(host,":",port) as h'))
                     ->fetch_one_numeric();
-                $hosts = sql::query('tendril.replication rep')
+                $hosts = sql('tendril.replication rep')
                     ->join('servers srv', 'rep.server_id = srv.id')
                     ->where_eq('rep.master_id', $mid)
                     ->fields('concat(srv.host,":",srv.port) as h')
@@ -170,19 +170,19 @@ class Package_Report extends Package
         $text = preg_replace_callback('/slave-per-master/',
             function($match) {
 
-                $masters = sql::query('tendril.servers')
+                $masters = sql('tendril.servers')
                     ->where('id in (select master_id from replication)')
                     ->where('id not in (select server_id from replication)')
                     ->fields('id')
                     ->fetch_field('id');
 
-                $slaves = sql::query('tendril.servers')
+                $slaves = sql('tendril.servers')
                     ->where('id in (select server_id from replication)')
                     ->where_not_in_if('id', $masters)
                     ->fields('id')
                     ->fetch_field('id');
 
-                $qps = sql::query('tendril.global_status_log gsl')
+                $qps = sql('tendril.global_status_log gsl')
                     ->fields(array(
                         'gsl.server_id',
                         'rep.master_id',
@@ -199,7 +199,7 @@ class Package_Report extends Package
                 sql::rawquery('drop temporary table if exists qps');
                 sql::rawquery(sprintf('create temporary table qps as %s', $qps->get_select()));
 
-                $slave_ids = sql::query('tendril.servers srv')
+                $slave_ids = sql('tendril.servers srv')
                     ->join('qps', 'srv.id = qps.server_id')
                     ->group('qps.master_id')
                     ->fields(array(
@@ -207,7 +207,7 @@ class Package_Report extends Package
                     ))
                     ->fetch_field('slave_id');
 
-                $hosts = sql::query('tendril.servers')
+                $hosts = sql('tendril.servers')
                     ->where_in('id', $slave_ids)
                     ->fields('concat(host,":",port) as h')
                     ->group('h')
@@ -231,7 +231,7 @@ class Package_Report extends Package
 
         if ($host || $schema || $table)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -282,7 +282,7 @@ class Package_Report extends Package
 
         if ($table)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -334,7 +334,7 @@ class Package_Report extends Package
 
         if ($host || $schema || $table)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -404,7 +404,7 @@ class Package_Report extends Package
 
         if ($host || $schema || $table || $column)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -462,7 +462,7 @@ class Package_Report extends Package
 
         if ($table && $column)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -485,7 +485,7 @@ class Package_Report extends Package
 
             if ($host)
             {
-                $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                $host_ids = sql('tendril.servers srv')->fields('srv.id')
                     ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                     ->fetch_field('id');
                 $search->where_in('srv.id', $host_ids ? $host_ids: array(0));
@@ -513,7 +513,7 @@ class Package_Report extends Package
 
         if ($table && $index)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -573,7 +573,7 @@ class Package_Report extends Package
 
         if ($table && $index)
         {
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
 
                 ->join('tendril.schemata sch',
                     'srv.id = sch.server_id')
@@ -625,10 +625,10 @@ class Package_Report extends Package
 
         if ($hostA && $hostB)
         {
-            $hA = new Host($hostA);
-            $hB = new Host($hostB);
+            $hA = new Server($hostA);
+            $hB = new Server($hostB);
 
-            $searchA = sql::query('tendril.statistics a')
+            $searchA = sql('tendril.statistics a')
                 ->fields(array(
                     'a.table_schema as schema_name',
                     'a.table_name as table_name',
@@ -648,7 +648,7 @@ class Package_Report extends Package
                 $searchA->where_regexp('a.table_schema', $schema);
             }
 
-            $searchB = sql::query('tendril.statistics b')
+            $searchB = sql('tendril.statistics b')
                 ->fields(array(
                     'b.table_schema as schema_name',
                     'b.table_name as table_name',
@@ -682,7 +682,7 @@ class Package_Report extends Package
     {
         $host = $this->request('host');
 
-        $string_ids = sql::query('tendril.strings')
+        $string_ids = sql('tendril.strings')
             ->where_in('string', array(
                 'innodb_buffer_pool_read_requests',
                 'innodb_buffer_pool_reads',
@@ -711,7 +711,7 @@ class Package_Report extends Package
         $spin_s_rounds_id = $string_ids['innodb_s_lock_spin_rounds'];
         $spin_x_rounds_id = $string_ids['innodb_x_lock_spin_rounds'];
 
-        $search = sql::query('tendril.servers srv')
+        $search = sql('tendril.servers srv')
             ->fields('srv.id')
             ->where_eq('srv.enabled', 1)
             ->order('srv.host')
@@ -727,27 +727,27 @@ class Package_Report extends Package
 
         foreach ($server_ids as $server_id)
         {
-            $purge = sql::query('tendril.global_status')
+            $purge = sql('tendril.global_status')
                 ->fields('variable_value')->where_eq('server_id', $server_id)
                 ->where_eq('variable_name', 'innodb_history_list_length');
 
-            $fpt = sql::query('tendril.global_variables')
+            $fpt = sql('tendril.global_variables')
                 ->fields('variable_value')->where_eq('server_id', $server_id)
                 ->where_eq('variable_name', 'innodb_file_per_table');
 
-            $bps = sql::query('tendril.global_variables')
+            $bps = sql('tendril.global_variables')
                 ->fields('variable_value/1024/1024/1024')->where_eq('server_id', $server_id)
                 ->where_eq('variable_name', 'innodb_buffer_pool_size');
 
-            $lfs = sql::query('tendril.global_variables')
+            $lfs = sql('tendril.global_variables')
                 ->fields('variable_value/1024/1024')->where_eq('server_id', $server_id)
                 ->where_eq('variable_name', 'innodb_log_file_size');
 
-            $flatc = sql::query('tendril.global_variables')
+            $flatc = sql('tendril.global_variables')
                 ->fields('variable_value')->where_eq('server_id', $server_id)
                 ->where_eq('variable_name', 'innodb_flush_log_at_trx_commit');
 
-            $bphr = sql::query('tendril.global_status_log gs1')
+            $bphr = sql('tendril.global_status_log gs1')
                 ->join('tendril.global_status_log gs2')
                 ->where_eq('gs1.server_id', $server_id)
                 ->where_eq('gs2.server_id', $server_id)
@@ -757,65 +757,65 @@ class Package_Report extends Package
                 ->where('gs2.stamp > now() - interval 1 hour')
                 ->fields('(max(gs1.value)-min(gs1.value))/((max(gs1.value)-min(gs1.value))+(max(gs2.value)-min(gs2.value))) * 100');
 
-            $bpwf = sql::query('tendril.global_status')
+            $bpwf = sql('tendril.global_status')
                 ->fields('variable_value')->where_eq('server_id', $server_id)
                 ->where_eq('variable_name', 'innodb_buffer_pool_wait_free');
 
-            $ior = sql::query('tendril.global_status_log')
+            $ior = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $data_read_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('max(value)-min(value)');
 
-            $iow = sql::query('tendril.global_status_log')
+            $iow = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $data_written_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('max(value)-min(value)');
 
-            $deadlocks = sql::query('tendril.global_status_log')
+            $deadlocks = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $deadlocks_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('max(value)-min(value)');
 
-            $os_s_waits = sql::query('tendril.global_status_log')
+            $os_s_waits = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $os_s_waits_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('(max(value)-min(value)) / 3600');
 
-            $os_x_waits = sql::query('tendril.global_status_log')
+            $os_x_waits = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $os_x_waits_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('(max(value)-min(value)) / 3600');
 
-            $spin_s_waits = sql::query('tendril.global_status_log')
+            $spin_s_waits = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $spin_s_waits_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('(max(value)-min(value)) / 3600');
 
-            $spin_x_waits = sql::query('tendril.global_status_log')
+            $spin_x_waits = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $spin_x_waits_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('(max(value)-min(value)) / 3600');
 
-            $spin_s_rounds = sql::query('tendril.global_status_log')
+            $spin_s_rounds = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $spin_s_rounds_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('(max(value)-min(value)) / 3600');
 
-            $spin_x_rounds = sql::query('tendril.global_status_log')
+            $spin_x_rounds = sql('tendril.global_status_log')
                 ->where_eq('server_id', $server_id)
                 ->where_eq('name_id', $spin_x_rounds_id)
                 ->where('stamp > now() - interval 1 hour')
                 ->fields('(max(value)-min(value)) / 3600');
 
-            $search = sql::query('tendril.servers srv')
+            $search = sql('tendril.servers srv')
                 ->where_eq('srv.id', $server_id)
 
                 ->fields(array(
@@ -873,7 +873,7 @@ class Package_Report extends Package
 
         $qmode = $this->request('qmode', 'string', 'eq');
 
-        $search = sql::query('tendril.processlist_query_log pql')
+        $search = sql('tendril.processlist_query_log pql')
             ->cache(sql::MEMCACHE, 300)
             ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
             ->fields(array(
@@ -904,7 +904,7 @@ class Package_Report extends Package
         $host_ids = array();
         if ($host)
         {
-            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+            $host_ids = sql('tendril.servers srv')->fields('srv.id')
                 ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                 ->fetch_field('id');
             $search->where_in('pql.server_id', $host_ids ? $host_ids: array(0));
@@ -938,7 +938,7 @@ class Package_Report extends Package
 
         for ($i = 0; $i < round($hours*(20/$hours)); $i++)
         {
-            $search = sql::query('processlist_query_log pql')
+            $search = sql('processlist_query_log pql')
                 //->left_join('tendril.servers srv', 'pql.server_id = srv.id')
                 ->cache(sql::MEMCACHE, 300)
                 ->fields(array(
@@ -978,7 +978,7 @@ class Package_Report extends Package
         $g_rows = sql::command(join(' union ', $bars))
             ->fetch_all();
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');
@@ -1000,7 +1000,7 @@ class Package_Report extends Package
 
         if ($checksum)
         {
-            $search = sql::query('tendril.processlist_query_log pql')
+            $search = sql('tendril.processlist_query_log pql')
                 ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
                 ->fields(array('pql.*'))
                 ->where_eq('pql.checksum', $checksum)
@@ -1034,7 +1034,7 @@ class Package_Report extends Package
             'y' => array('Active Queries, '.$period.' sample', 'number'),
         );
 
-        $search = sql::query('processlist_query_log pql')
+        $search = sql('processlist_query_log pql')
             ->left_join('tendril.servers srv', 'pql.server_id = srv.id')
             ->fields('count(distinct concat(pql.server_id,":",pql.id))')
             ->where_eq('pql.checksum', $checksum)
@@ -1062,14 +1062,14 @@ class Package_Report extends Package
             sprintf('(%s) as y', $search->get_select()),
         );
 
-        $g_rows = sql::query('sequence s')
+        $g_rows = sql('sequence s')
             ->where_between('value', 0, round($hours*(20/$hours)))
             ->having('x is not null')
             ->fields($fields)
             ->order('x')
             ->fetch_all();
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');
@@ -1085,7 +1085,7 @@ class Package_Report extends Package
 
         $qmode = $this->request('qmode', 'string', 'eq');
 
-        $search = sql::query('tendril.queries_seen_log qsl')
+        $search = sql('tendril.queries_seen_log qsl')
             ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
             ->join('tendril.queries q', 'qsl.checksum = q.checksum')
             ->fields(array(
@@ -1105,7 +1105,7 @@ class Package_Report extends Package
         $host_ids = array();
         if ($host)
         {
-            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+            $host_ids = sql('tendril.servers srv')->fields('srv.id')
                 ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                 ->fetch_field('id');
             $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
@@ -1133,7 +1133,7 @@ class Package_Report extends Package
 
         for ($i = 0; $i < round($hours*(20/$hours)); $i++)
         {
-            $search = sql::query('queries_seen_log qsl')
+            $search = sql('queries_seen_log qsl')
                 //->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
                 ->join('tendril.queries q', 'qsl.checksum = q.checksum')
                 ->fields(array(
@@ -1163,7 +1163,7 @@ class Package_Report extends Package
         $g_rows = sql::command(join(' union ', $bars))
             ->fetch_all();
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');
@@ -1183,7 +1183,7 @@ class Package_Report extends Package
 
         if ($footprint)
         {
-            $search = sql::query('tendril.queries_seen_log qsl')
+            $search = sql('tendril.queries_seen_log qsl')
                 ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
                 ->join('tendril.queries q', 'qsl.checksum = q.checksum')
                 ->fields(array(
@@ -1198,7 +1198,7 @@ class Package_Report extends Package
 
             if ($host)
             {
-                $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+                $host_ids = sql('tendril.servers srv')->fields('srv.id')
                     ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                     ->fetch_field('id');
                 $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
@@ -1214,7 +1214,7 @@ class Package_Report extends Package
             'y' => array('Active Queries, '.$period.' sample', 'number'),
         );
 
-        $search = sql::query('queries_seen_log qsl')
+        $search = sql('queries_seen_log qsl')
             ->left_join('tendril.servers srv', 'qsl.server_id = srv.id')
             ->join('tendril.queries q', 'qsl.checksum = q.checksum')
             ->fields('count(qsl.server_id)')
@@ -1224,7 +1224,7 @@ class Package_Report extends Package
 
         if ($host)
         {
-            $host_ids = sql::query('tendril.servers srv')->fields('srv.id')
+            $host_ids = sql('tendril.servers srv')->fields('srv.id')
                 ->where_regexp('concat(srv.host,":",srv.port)', self::regex_host($host))
                 ->fetch_field('id');
             $search->where_in('qsl.server_id', $host_ids ? $host_ids: array(0));
@@ -1235,7 +1235,7 @@ class Package_Report extends Package
             sprintf('(%s) as y', $search->get_select()),
         );
 
-        $g_rows = sql::query('sequence s')
+        $g_rows = sql('sequence s')
             ->where_between('value', 0, round($hours*(20/$hours)))
             ->having('x is not null')
             ->fields($fields)
@@ -1243,7 +1243,7 @@ class Package_Report extends Package
             ->fetch_all();
 
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');
@@ -1253,7 +1253,7 @@ class Package_Report extends Package
 
     private function data_schemas()
     {
-        $host_ids = sql::query('tendril.servers')
+        $host_ids = sql('tendril.servers')
             ->where_null('m_master_id')
             ->where_like('host', 'db____.%')
             ->fields('id')
@@ -1261,7 +1261,7 @@ class Package_Report extends Package
 
         $schema = $this->request('schema');
 
-        $search = sql::query('tendril.tables tab')
+        $search = sql('tendril.tables tab')
             ->fields(array(
                 'tab.server_id',
                 'tab.table_schema as schema_name',
@@ -1289,13 +1289,13 @@ class Package_Report extends Package
 
     private function data_clusters()
     {
-        $host_ids = sql::query('tendril.servers')
+        $host_ids = sql('tendril.servers')
             ->where_null('m_master_id')
             ->where_like('host', 'db____.%')
             ->fields('id')
             ->fetch_field('id');
 
-        $search = sql::query('tendril.tables tab')
+        $search = sql('tendril.tables tab')
             ->fields(array(
                 'tab.server_id',
                 'group_concat(distinct tab.table_schema) as schema_names',
@@ -1329,7 +1329,7 @@ class Package_Report extends Package
 
         for ($i = $min; $i < $max; $i += $inc)
         {
-            $unions[] = sql::query(sprintf('%s.%s', $schema, $table))
+            $unions[] = sql(sprintf('%s.%s', $schema, $table))
                 ->where_between($field, $i, $i+$inc-1)
                 ->fields(array(
                     sprintf('%d as v', $i),
@@ -1356,7 +1356,7 @@ class Package_Report extends Package
 
         if ($host || $schema || $user || $time || $command)
         {
-            $search = sql::query('tendril.processlist p')->fields('p.*')
+            $search = sql('tendril.processlist p')->fields('p.*')
                 ->join('tendril.servers srv', 'p.server_id = srv.id')
                 ->order('p.time', 'desc')
                 ->limit(100);
@@ -1394,7 +1394,7 @@ class Package_Report extends Package
             $rows = $search->fetch_all();
         }
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');
@@ -1412,7 +1412,7 @@ class Package_Report extends Package
 
         if ($host || $schema || $user || $time || $command)
         {
-            $search = sql::query('tendril.innodb_trx t')
+            $search = sql('tendril.innodb_trx t')
                 ->fields(array(
                     't.*', 'p.*',
                     'unix_timestamp() - unix_timestamp(trx_started) as trx_time',
@@ -1456,7 +1456,7 @@ class Package_Report extends Package
                 $thread_ids[] = $row['trx_mysql_thread_id'];
             }
 
-            $queries = sql::query('processlist_query_log pql')
+            $queries = sql('processlist_query_log pql')
                 ->where_in('server_id', array_unique($server_ids))
                 ->where_in('id', array_unique($thread_ids))
                 ->where('stamp > now() - interval 10 minute')
@@ -1476,7 +1476,7 @@ class Package_Report extends Package
             }
         }
 
-        $dns = sql::query('tendril.dns')
+        $dns = sql('tendril.dns')
             ->cache(sql::MEMCACHE, 300)
             ->group('ipv4')
             ->fetch_pair('ipv4', 'host');

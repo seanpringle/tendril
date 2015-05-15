@@ -93,7 +93,8 @@ function contact($secs)
 
 foreach ($hosts as $row)
 {
-    $h = new Host($row);
+    $row = $row->export();
+    $h = new Server($row);
 
     $masters = 'n/a';
 
@@ -104,7 +105,7 @@ foreach ($hosts as $row)
 
         foreach ($master_ids as $master_id)
         {
-            $s = new Host(expect($hosts, $master_id, 'array', $master_id));
+            $s = new Server($master_id);
             $masters[] = tag('a', array(
                 'href' => sprintf('/host/view/%s/%d', $s->name(), $s->port),
                 'html' => escape($s->describe()),
@@ -122,7 +123,7 @@ foreach ($hosts as $row)
 
         foreach ($slave_ids as $slave_id)
         {
-            $s = new Host(expect($hosts, $slave_id, 'array', $slave_id));
+            $s = new Server($slave_id);
             $slaves[] = tag('a', array(
                 'href' => sprintf('/host/view/%s/%d', $s->name(), $s->port),
                 'html' => escape($s->describe()),

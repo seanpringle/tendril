@@ -1,58 +1,17 @@
 <?php
 
-error_reporting(E_ALL);
+error_reporting(E_WARNING);
 date_default_timezone_set('UTC');
 
-function e($msg)
-{
-    error_log($msg);
-}
+$_ENV['debug'] = false;
 
-e('************************************');
-e($_SERVER['REQUEST_URI']);
+$_ENV['db_host'] = '127.0.0.1';
+$_ENV['db_user'] = '';
+$_ENV['db_pass'] = '';
+$_ENV['db_name'] = 'tendril';
+$_ENV['db_port'] = 3306;
 
-set_error_handler(
+$_ENV['mc_host'] = '127.0.0.1';
+$_ENV['mc_port'] = 11211;
 
-    function($errno, $message, $file, $line, $context)
-    {
-        if ($errno === E_WARNING) {
-            backtrace();
-        }
-        return false;
-    }
-);
-
-function db()
-{
-    static $db = null;
-    if (is_null($db) || !is_resource($db))
-    {
-        e("db connect: host");
-        $db = @mysql_connect('host', 'user', 'pass')
-            or die('database'); mysql_select_db('user');
-    }
-    return $db;
-}
-
-function mc()
-{
-    static $mc = null;
-    if (is_null($mc) && class_exists('Memcache'))
-    {
-        e("mc connect: host");
-        $mc = new Memcache();
-        if (!$mc->addServer('host'))
-            $mc = null;
-    }
-    return $mc;
-}
-
-function cfg($key, $def=null)
-{
-    switch ($key)
-    {
-        case 'package.default':
-            return 'default';
-    }
-    return $def;
-}
+$_ENV['pkg_default'] = 'host';

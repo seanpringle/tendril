@@ -11,10 +11,12 @@ $clusters = array(
     gethostbyname('m1-master') => 'm1',
     gethostbyname('m2-master') => 'm2',
     gethostbyname('m3-master') => 'm3',
+    gethostbyname('m4-master') => 'm4',
+    gethostbyname('m5-master') => 'm5',
     gethostbyname('x1-master') => 'x1',
 );
 
-class Host
+class Server
 {
     public $ok = false;
     private $row = array();
@@ -25,37 +27,38 @@ class Host
 
         if (is_numeric($id) && $id > 0)
         {
-            $row = sql::query('tendril.servers')
-                ->cache(sql::MEMCACHE, 300)
-                ->where_eq('id', $id)
+            $row = sql('tendril.servers')
+                ->cache(SQL::MEMCACHE, 300)
+                ->where_eq('id', intval($id))
                 ->fetch_one();
         }
         else
         if (!is_numeric($id) && is_string($id))
         {
-            $row = sql::query('tendril.servers')
-                ->cache(sql::MEMCACHE, 300)
-                ->where_eq('host', $id)->fetch_one();
+            $row = sql('tendril.servers')
+                ->cache(SQL::MEMCACHE, 300)
+                ->where_eq('host', $id)
+                ->fetch_one();
 
-            if (!$row && preg_match('/^[a-z]{2}[0-9]+$/', $id))
+            if (is_null($row) && preg_match('/^[a-z]{2}[0-9]+$/', $id))
             {
-                $row = sql::query('tendril.servers')
-                    ->cache(sql::MEMCACHE, 300)
-                    ->where_like('host', "$id%")->fetch_one();
+                $row = sql('tendril.servers')
+                    ->cache(SQL::MEMCACHE, 300)
+                    ->where_like('host', "$id%")
+                    ->fetch_one();
             }
         }
-        else
-        if (is_array($id))
+        if (!is_scalar($id))
         {
             $row = $id;
-
-            sql::query('tendril.servers')
-                ->cache(sql::MEMCACHE, 300)
-                ->where_eq('id', $row['id'])
-                ->recache($row);
         }
 
-        if (is_array($row) && $row)
+        if (is_dict($row))
+        {
+            $row = $row->export();
+        }
+
+        if (is_array($row))
         {
             $this->row = $row;
             $this->ok = true;
@@ -69,7 +72,7 @@ class Host
 
     public static function by_name_port($name, $port=3306)
     {
-        $row = sql::query('tendril.servers')
+        $row = sql('tendril.servers')
             ->where_eq('host', $name)
             ->where_eq('port', $port)
             ->fetch_one();
@@ -78,7 +81,7 @@ class Host
 
     public static function by_m_server_id($id)
     {
-        $row = sql::query('tendril.servers')
+        $row = sql('tendril.servers')
             ->where_eq('m_server_id', $id)
             ->fetch_one();
         return new self($row);
